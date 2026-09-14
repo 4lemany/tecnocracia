@@ -138,29 +138,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Función de llamada a Gemini con reintento automático
-def generar_con_reintento(client, contents, model="gemini-3.6-flash", max_intentos=3):
+# Función de llamada a Gemini con manejo robusto de reintentos para errores 500/503 y de cuota
+def generar_con_reintento(client, contents, model="gemini-3.6-flash", max_intentos=4):
     for intento in range(max_intentos):
         try:
             return client.models.generate_content(model=model, contents=contents)
         except Exception as e:
             err_msg = str(e)
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+            if any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded"]):
                 if intento < max_intentos - 1:
-                    espera = 25
-                    if "retry in " in err_msg:
-                        try:
-                            espera = int(float(err_msg.split("retry in ")[1].split("s")[0])) + 2
-                        except Exception:
-                            espera = 25
-                    st.toast(f"⏳ Pausa de cuota gratuita. Esperando {espera}s...", icon="⏳")
+                    espera = 4 * (intento + 1)
+                    st.toast(f"⏳ El servidor de Gemini está respondiendo lento. Reintentando ({intento+1}/{max_intentos})...", icon="⏳")
                     time.sleep(espera)
                     continue
-                else:
-                    st.error("⚠️ Límite temporal de peticiones alcanzado. Espera 30 segundos y vuelve a probar.")
-                    raise e
-            else:
-                raise e
+            if intento < max_intentos - 1:
+                time.sleep(3)
+                continue
+            st.error("⚠️ El servidor de Gemini tuvo un fallo temporal de conexión. Por favor, vuelve a enviar tu pregunta.")
+            raise e
 
 # ----------------- BARRA LATERAL: INFORMACIÓN Y APROBACIÓN REAL -----------------
 with st.sidebar:
