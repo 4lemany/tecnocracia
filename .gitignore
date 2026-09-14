@@ -1,0 +1,39 @@
+# Entorno y Secretos (¡NUNCA SUBIR A GIT!)
+.env
+.env.*
+!.env.example
+
+# Entornos virtuales de Python
+.venv/
+venv/
+ENV/
+env/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Bases de datos y sesiones locales de Google ADK
+.adk/
+*/.adk/*
+*.db
+*.sqlite3
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Distribución y compilación
+dist/
+build/
+*.egg-info/
+
+# Logs temporales
+*.log
+
+# Configuración local de IDE
+.vscode/*
+!.vscode/settings.json
+.idea/
