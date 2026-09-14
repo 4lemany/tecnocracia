@@ -1,18 +1,8 @@
 {
   "votos": {
-    "positivos": 14,
-    "negativos": 2
+    "positivos": 0,
+    "negativos": 0
   },
-  "opiniones": [
-    {
-      "autor": "Carlos (Ingeniero)",
-      "mensaje": "Gran idea contrastar a los ministros antes de dar una resolución. Da mucha más riqueza al debate.",
-      "fecha": "14/09/2026 18:25"
-    },
-    {
-      "autor": "Elena M.",
-      "mensaje": "El ministro de economía es implacable con el presupuesto, pero el de educación compensa bien con visión a largo plazo.",
-      "fecha": "14/09/2026 18:40"
-    }
-  ]
+  "opiniones": [],
+  "historial_conversaciones": []
 }

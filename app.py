@@ -1,6 +1,6 @@
 """
 🏛️ Tecnocracia: Plataforma de Gobierno Multiagente con Google ADK y Gemini.
-Deliberación Ministerial, Chat Libre con Trazabilidad, Votación Comunitaria y Buzón de Opiniones.
+Deliberación Ministerial, Chat Libre con Trazabilidad, Historial de Conversaciones, Votación Comunitaria y Buzón de Opiniones Real.
 """
 
 import os
@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
-# Configuración de página de Streamlit (debe ser la primera llamada de st)
+# Configuración de página de Streamlit
 st.set_page_config(
     page_title="Tecnocracia | Partido y Gobierno Multiagente",
     page_icon="🏛️",
@@ -39,34 +39,31 @@ from ministros.economia import INSTRUCCION_ECONOMIA
 from ministros.educacion import INSTRUCCION_EDUCACION
 from ministros.interior import INSTRUCCION_INTERIOR
 
-# Gestión persistente de votos y buzón comunitario
+# Gestión persistente de datos de la comunidad, votos e historial real
 RUTA_COMUNIDAD = Path("datos_comunidad.json")
 
 def cargar_datos_comunidad():
+    datos_default = {
+        "votos": {"positivos": 0, "negativos": 0},
+        "opiniones": [],
+        "historial_conversaciones": []
+    }
     if not RUTA_COMUNIDAD.exists():
-        datos_default = {
-            "votos": {"positivos": 14, "negativos": 2},
-            "opiniones": [
-                {
-                    "autor": "Carlos (Ingeniero)",
-                    "mensaje": "Gran idea contrastar a los ministros antes de dar una resolución. Da mucha más riqueza al debate.",
-                    "fecha": "14/09/2026 18:25"
-                },
-                {
-                    "autor": "Elena M.",
-                    "mensaje": "El ministro de economía es implacable con el presupuesto, pero el de educación compensa bien con visión a largo plazo.",
-                    "fecha": "14/09/2026 18:40"
-                }
-            ]
-        }
         with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
             json.dump(datos_default, f, ensure_ascii=False, indent=2)
         return datos_default
     try:
         with open(RUTA_COMUNIDAD, "r", encoding="utf-8") as f:
-            return json.load(f)
+            datos = json.load(f)
+            if "votos" not in datos:
+                datos["votos"] = {"positivos": 0, "negativos": 0}
+            if "opiniones" not in datos:
+                datos["opiniones"] = []
+            if "historial_conversaciones" not in datos:
+                datos["historial_conversaciones"] = []
+            return datos
     except Exception:
-        return {"votos": {"positivos": 0, "negativos": 0}, "opiniones": []}
+        return datos_default
 
 def guardar_datos_comunidad(datos):
     with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
@@ -141,7 +138,7 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", max_intent
             else:
                 raise e
 
-# ----------------- BARRA LATERAL: INFORMACIÓN Y APROBACIÓN -----------------
+# ----------------- BARRA LATERAL: INFORMACIÓN Y APROBACIÓN REAL -----------------
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/courthouse.png", width=64)
     st.title("Gobierno Tecnocrático")
@@ -149,7 +146,7 @@ with st.sidebar:
     
     st.divider()
     
-    # Métricas de votación ciudadana en el sidebar
+    # Métricas reales de votación ciudadana en el sidebar
     votos = st.session_state.datos_comunidad["votos"]
     pos = votos.get("positivos", 0)
     neg = votos.get("negativos", 0)
@@ -164,7 +161,10 @@ with st.sidebar:
         st.metric(label="Total Votos", value=f"{total_votos}")
         
     st.progress(pct_aprobacion / 100.0)
-    st.caption(f"👍 {pos} votos a favor | 👎 {neg} en contra")
+    if total_votos > 0:
+        st.caption(f"👍 {pos} votos a favor | 👎 {neg} en contra")
+    else:
+        st.caption("👍 0 a favor | 👎 0 en contra (Sin votos aún)")
     
     st.divider()
     st.subheader("🏛️ Miembros del Gabinete")
@@ -179,9 +179,10 @@ with st.sidebar:
 st.title("🏛️ Partido Tecnocrático: Gabinete Autónomo")
 st.markdown("Un gobierno ficticio donde ministros con IA deliberan con máximo rigor técnico sobre cómo dirigir una región.")
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "🚀 Consejo de Ministros (Debate y Leyes)",
     "💬 Preguntas Libres y Trazabilidad",
+    "📜 Historial de Conversaciones",
     "🗳️ Votación y Buzón Ciudadano"
 ])
 
@@ -310,6 +311,23 @@ Emite la resolución final estructurada:
         st.subheader("📜 Dictamen Oficial del Primer Ministro")
         st.markdown("<span class='badge-pm'>PRIMER MINISTRO</span>", unsafe_allow_html=True)
         st.markdown(res_pm.text)
+        
+        # Registrar sesión deliberativa en el historial persistente
+        nueva_conv = {
+            "tipo": "🏛️ Consejo de Ministros",
+            "agente": "👑 Gabinete Completo",
+            "pregunta": propuesta_texto,
+            "respuesta": res_pm.text,
+            "detalles_debate": {
+                "economia": res_eco.text,
+                "educacion": res_edu.text,
+                "interior": res_int.text
+            },
+            "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "modelo": "gemini-3.6-flash"
+        }
+        st.session_state.datos_comunidad.setdefault("historial_conversaciones", []).append(nueva_conv)
+        guardar_datos_comunidad(st.session_state.datos_comunidad)
 
 # -------------------------------------------------------------
 # TAB 2: PREGUNTAS LIBRES Y TRAZABILIDAD
@@ -331,7 +349,7 @@ with tab2:
             ]
         )
     with col_ag2:
-        if st.button("🗑️ Limpiar Chat", use_container_width=True):
+        if st.button("🗑️ Limpiar Chat Pantalla", use_container_width=True):
             st.session_state.chat_messages = []
             st.rerun()
 
@@ -379,6 +397,7 @@ with tab2:
                 
                 t0 = time.perf_counter()
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
+                fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 response = generar_con_reintento(client, prompt_completo)
                 duracion = time.perf_counter() - t0
                 
@@ -412,16 +431,107 @@ with tab2:
                     "content": response.text,
                     "trace": trace_data
                 })
+                
+                # Guardar automáticamente en el historial persistente de conversaciones
+                nueva_conv = {
+                    "tipo": "💬 Consulta Directa",
+                    "agente": nombre_agente,
+                    "pregunta": pregunta_usuario,
+                    "respuesta": response.text,
+                    "fecha": fecha_completa,
+                    "telemetria": trace_data
+                }
+                st.session_state.datos_comunidad.setdefault("historial_conversaciones", []).append(nueva_conv)
+                guardar_datos_comunidad(st.session_state.datos_comunidad)
 
 # -------------------------------------------------------------
-# TAB 3: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS
+# TAB 3: HISTORIAL DE CONVERSACIONES REAL
 # -------------------------------------------------------------
 with tab3:
-    st.subheader("🗳️ ¿Qué te parece el proyecto de Gobierno Tecnocrático?")
-    st.markdown("Tu opinión ayuda a mejorar el modelo de agentes y el rigor de los debates.")
+    st.subheader("📜 Historial de Interacciones y Consultas")
+    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete y los debates del Consejo de Ministros.")
     
-    # 1. Sistema de votación
-    st.markdown("#### 1. Votación de Aprobación de la Web")
+    historial = st.session_state.datos_comunidad.get("historial_conversaciones", [])
+    
+    if not historial:
+        st.info("ℹ️ Aún no hay conversaciones registradas. Haz una pregunta en 'Preguntas Libres' o convoca un 'Consejo de Ministros' para empezar a guardar registros reales.")
+    else:
+        col_h1, col_h2, col_h3 = st.columns([1, 1, 2])
+        with col_h1:
+            st.metric("Total Interacciones", len(historial))
+        with col_h2:
+            st.metric("Último Registro", historial[-1]["fecha"].split(" ")[1] if historial else "--:--")
+        with col_h3:
+            if st.button("🗑️ Vaciar Historial de Conversaciones", use_container_width=True):
+                st.session_state.datos_comunidad["historial_conversaciones"] = []
+                guardar_datos_comunidad(st.session_state.datos_comunidad)
+                st.success("Historial de conversaciones vaciado con éxito.")
+                st.rerun()
+                
+        st.divider()
+        
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            busqueda = st.text_input("🔍 Buscar en el historial:", placeholder="Palabra clave (ej. economía, vivienda, empleo, seguridad)...")
+        with col_f2:
+            agentes_unicos = ["Todos"] + sorted(list(set(item.get("agente", "Desconocido") for item in historial)))
+            filtro_agente = st.selectbox("Filtrar por Agente:", agentes_unicos)
+            
+        historial_filtrado = historial
+        if filtro_agente != "Todos":
+            historial_filtrado = [h for h in historial_filtrado if h.get("agente") == filtro_agente]
+        if busqueda.strip():
+            q = busqueda.lower()
+            historial_filtrado = [
+                h for h in historial_filtrado 
+                if q in h.get("pregunta", "").lower() or q in h.get("respuesta", "").lower() or q in h.get("agente", "").lower()
+            ]
+            
+        st.caption(f"Mostrando {len(historial_filtrado)} de {len(historial)} registros.")
+        
+        for i, item in enumerate(reversed(historial_filtrado)):
+            tipo = item.get("tipo", "Consulta")
+            agente = item.get("agente", "Agente")
+            fecha = item.get("fecha", "")
+            pregunta = item.get("pregunta", "")
+            respuesta = item.get("respuesta", "")
+            
+            with st.expander(f"🕒 {fecha} | [{agente}] {pregunta[:75]}...", expanded=(i == 0)):
+                st.markdown(f"**📌 Tipo:** `{tipo}` | **🤖 Interlocutor:** **{agente}** | **📅 Fecha:** {fecha}")
+                st.markdown("#### 👤 Consulta / Propuesta del Usuario:")
+                st.info(pregunta)
+                st.markdown("#### 🏛️ Respuesta Oficial del Agente:")
+                st.markdown(respuesta)
+                
+                if "detalles_debate" in item and item["detalles_debate"]:
+                    with st.expander("🔍 Desplegar deliberaciones individuales de los ministros"):
+                        st.markdown("**💼 Economía & Hacienda:**")
+                        st.write(item["detalles_debate"].get("economia", ""))
+                        st.markdown("**🎓 Educación & Ciencia:**")
+                        st.write(item["detalles_debate"].get("educacion", ""))
+                        st.markdown("**🛡️ Interior & Gobernanza:**")
+                        st.write(item["detalles_debate"].get("interior", ""))
+                        
+                if "telemetria" in item and item["telemetria"]:
+                    t = item["telemetria"]
+                    st.markdown(f"""
+                    <div style='margin-top: 10px;'>
+                        <span class='trace-pill pill-blue'>⏱️ Latencia: {t.get('duracion', 0):.2f}s</span>
+                        <span class='trace-pill pill-green'>🏷️ Tokens In: {t.get('tokens_in', 0)}</span>
+                        <span class='trace-pill pill-green'>🏷️ Tokens Out: {t.get('tokens_out', 0)}</span>
+                        <span class='trace-pill pill-amber'>📊 Total Tokens: {t.get('tokens_total', 0)}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# TAB 4: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS REAL
+# -------------------------------------------------------------
+with tab4:
+    st.subheader("🗳️ Encuesta y Buzón de Críticas sobre el Desarrollo")
+    st.markdown("Sistema de métricas 100% reales. Todas las votaciones y opiniones mostradas corresponden únicamente a la participación de usuarios reales.")
+    
+    # 1. Sistema de votación real
+    st.markdown("#### 1. Votación de Aprobación del Proyecto")
     
     col_vote1, col_vote2, col_stat = st.columns([1, 1, 2])
     
@@ -444,26 +554,30 @@ with tab3:
     with col_stat:
         v = st.session_state.datos_comunidad["votos"]
         total = v["positivos"] + v["negativos"]
-        pct = round((v["positivos"] / total) * 100, 1) if total > 0 else 0
-        st.markdown(f"**Resultado actual:** **{pct}% de aprobación** ({v['positivos']} a favor de {total} votos)")
-        st.progress(pct / 100.0)
+        pct = round((v["positivos"] / total) * 100, 1) if total > 0 else 0.0
+        if total > 0:
+            st.markdown(f"**Resultado actual:** **{pct}% de aprobación** ({v['positivos']} a favor de {total} votos)")
+            st.progress(pct / 100.0)
+        else:
+            st.markdown("**Resultado actual:** **Sin votos aún** (0.0% de aprobación)")
+            st.progress(0.0)
         
     if st.session_state.ha_votado:
         st.caption("✅ Ya has participado en la votación en esta sesión.")
         
     st.divider()
     
-    # 2. Buzón de opiniones y críticas constructivas
-    st.markdown("#### 2. Buzón de Críticas Constructivas y Sugerencias")
+    # 2. Buzón de opiniones reales
+    st.markdown("#### 2. Buzón de Críticas Constructivas y Sugerencias Reales")
     
     with st.form("form_buzon"):
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
-            autor_opinion = st.text_input("Tu nombre o apodo (opcional):", placeholder="Ej: Anónimo / Alumno de Economía")
+            autor_opinion = st.text_input("Tu nombre o apodo (opcional):", placeholder="Ej: Anónimo / Usuario")
         with col_f2:
-            mensaje_opinion = st.text_area("¿Qué opinas del proyecto? ¿Qué mejorarías?", placeholder="Escribe aquí tu crítica constructiva o propuesta técnica...")
+            mensaje_opinion = st.text_area("¿Qué opinas del proyecto? ¿Qué mejorarías?", placeholder="Escribe aquí tu opinión o sugerencia...")
             
-        enviar_opinion = st.form_submit_button("📩 Enviar al Buzón Público")
+        enviar_opinion = st.form_submit_button("📩 Enviar Opinión")
         
         if enviar_opinion:
             if not mensaje_opinion.strip():
@@ -476,10 +590,10 @@ with tab3:
                 }
                 st.session_state.datos_comunidad["opiniones"].append(nueva_op)
                 guardar_datos_comunidad(st.session_state.datos_comunidad)
-                st.success("¡Opinión añadida al buzón con éxito!")
+                st.success("¡Opinión registrada con éxito!")
                 st.rerun()
                 
-    st.markdown("#### 📬 Opiniones de la Comunidad")
+    st.markdown("#### 📬 Opiniones Reales de la Comunidad")
     opiniones = st.session_state.datos_comunidad.get("opiniones", [])
     if not opiniones:
         st.info("Aún no hay mensajes en el buzón. ¡Sé el primero en opinar!")
