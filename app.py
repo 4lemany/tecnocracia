@@ -10,9 +10,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
-from dotenv import load_dotenv
 
-# Configuración de página de Streamlit
+# Configuración de página de Streamlit (debe ser la primera llamada de st)
 st.set_page_config(
     page_title="Tecnocracia | Partido y Gobierno Multiagente",
     page_icon="🏛️",
@@ -20,9 +19,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Cargar entorno y API Key
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Cargar API Key (Soporta tanto .env local como st.secrets en Streamlit Cloud)
 api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY")
+    except Exception:
+        api_key = None
 
 from google import genai
 from primer_ministro.agent import INSTRUCCION_PRIME_MINISTER
