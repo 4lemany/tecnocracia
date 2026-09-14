@@ -1,6 +1,6 @@
 """
 🏛️ Tecnocracia: Plataforma de Gobierno Multiagente con Google ADK y Gemini.
-Deliberación Ministerial, Chat Libre con Trazabilidad, Historial de Conversaciones, Votación Comunitaria y Buzón de Opiniones Real.
+Chat Libre con Trazabilidad, Historial de Conversaciones, Votación Comunitaria y Buzón de Opiniones Real.
 """
 
 import os
@@ -11,12 +11,12 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
-# Configuración de página adaptada para móvil y escritorio (sidebar automático en móvil)
+# Configuración de página adaptada para móvil y escritorio
 st.set_page_config(
     page_title="Tecnocracia | Partido y Gobierno Multiagente",
     page_icon="🏛️",
     layout="wide",
-    initial_sidebar_state="auto"  # En móviles se colapsa automáticamente para no tapar el texto
+    initial_sidebar_state="auto"
 )
 
 try:
@@ -83,7 +83,6 @@ st.markdown("""
 <style>
     .main { background-color: #0b0f19; }
     
-    /* Ajuste de márgenes globales y wrapping para móviles */
     p, span, div, h1, h2, h3, h4, h5, h6, .stMarkdown {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
@@ -122,7 +121,6 @@ st.markdown("""
     .badge-int { background-color: #831843; color: #f472b6; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
     .badge-pm  { background-color: #78350f; color: #fde68a; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
 
-    /* REGLAS RESPONSIVAS ESPECÍFICAS PARA MÓVILES (pantallas < 768px) */
     @media (max-width: 768px) {
         .main .block-container {
             padding-left: 0.75rem !important;
@@ -203,162 +201,18 @@ with st.sidebar:
 
 # ----------------- PANEL PRINCIPAL: TABS -----------------
 st.title("🏛️ Partido Tecnocrático: Gabinete Autónomo")
-st.markdown("Un gobierno ficticio donde ministros con IA deliberan con máximo rigor técnico sobre cómo dirigir una región.")
+st.markdown("Un gobierno ficticio donde ministros con IA analizan con máximo rigor técnico la gestión de una región.")
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "🚀 Consejo de Ministros (Debate y Leyes)",
+tab1, tab2, tab3 = st.tabs([
     "💬 Preguntas Libres y Trazabilidad",
     "📜 Historial de Conversaciones",
     "🗳️ Votación y Buzón Ciudadano"
 ])
 
 # -------------------------------------------------------------
-# TAB 1: CONSEJO DE MINISTROS (DEBATE DELIBERATIVO REAL)
+# TAB 1: PREGUNTAS LIBRES Y TRAZABILIDAD
 # -------------------------------------------------------------
 with tab1:
-    st.subheader("1. Plantea un dilema o propuesta para la región")
-    
-    casos_predeterminados = [
-        "Plan de choque para reducir el desempleo juvenil mediante becas formativas en empresas de tecnología y transición ecológica.",
-        "Crisis de vivienda: regulación del alquiler turístico y movilización de suelo público para viviendas de protección oficial.",
-        "Plan de digitalización y desburocratización radical: reducir plazos de licencias administrativas con inteligencia artificial.",
-        "Financiación del transporte público regional: gratuidad para jóvenes y trabajadores financiada con una tasa turística."
-    ]
-    
-    modo = st.radio("Origen de la propuesta:", ["Elegir caso predeterminado", "Escribir propuesta personalizada"], horizontal=True)
-    
-    if modo == "Elegir caso predeterminado":
-        propuesta_texto = st.selectbox("Selecciona un caso:", casos_predeterminados)
-    else:
-        propuesta_texto = st.text_area(
-            "Escribe la propuesta o problema regional a debatir:",
-            placeholder="Ej: ¿Qué opináis de poner peajes de acceso al centro de la ciudad para reducir la contaminación?...",
-            height=100
-        )
-        
-    btn_convocar = st.button("⚖️ Convocar Consejo de Ministros y Debatir", type="primary", use_container_width=True)
-    
-    if btn_convocar:
-        if not api_key:
-            st.error("❌ GEMINI_API_KEY no encontrada en .env. Por favor, configúrala.")
-            st.stop()
-            
-        client = genai.Client(api_key=api_key)
-        
-        with st.status("🏛️ Consejo de Ministros en sesión deliberativa...", expanded=True) as status:
-            
-            # 1. Ministro de Economía
-            st.write("💼 **1. Ministro de Economía analizando viabilidad presupuestaria y coste-beneficio...**")
-            prompt_eco = f"""
-{INSTRUCCION_ECONOMIA}
-
-PROPUESTA REGIONAL A EVALUAR:
-{propuesta_texto}
-
-Genera tu dictamen ministerial económico (máx 3 párrafos).
-Argumenta con lógica de sostenibilidad fiscal, incentivos económicos y posibles sobrecostes o retornos. Exige condiciones a los otros ministros.
-"""
-            res_eco = generar_con_reintento(client, prompt_eco)
-            
-            with st.expander("💼 Dictamen del Ministro de Economía", expanded=True):
-                st.markdown("<span class='badge-eco'>ECONOMÍA & HACIENDA</span>", unsafe_allow_html=True)
-                st.write(res_eco.text)
-                
-            time.sleep(1.0)
-            
-            # 2. Ministro de Educación y Cultura
-            st.write("🎓 **2. Ministro de Educación evaluando impacto en capital humano y ciencia...**")
-            prompt_edu = f"""
-{INSTRUCCION_EDUCACION}
-
-PROPUESTA REGIONAL A EVALUAR:
-{propuesta_texto}
-
-POSTURA PREVIA DEL MINISTRO DE ECONOMÍA:
-{res_eco.text}
-
-Emite tu dictamen ministerial (máx 3 párrafos). Defiende la formación, el talento, la investigación y contrarresta constructivamente la rigidez fiscal de Economía.
-"""
-            res_edu = generar_con_reintento(client, prompt_edu)
-            
-            with st.expander("🎓 Dictamen del Ministro de Educación y Ciencia", expanded=True):
-                st.markdown("<span class='badge-edu'>EDUCACIÓN & CIENCIA</span>", unsafe_allow_html=True)
-                st.write(res_edu.text)
-                
-            time.sleep(1.0)
-            
-            # 3. Ministro de Interior
-            st.write("🛡️ **3. Ministro de Interior evaluando seguridad cívica y viabilidad operativa...**")
-            prompt_int = f"""
-{INSTRUCCION_INTERIOR}
-
-PROPUESTA REGIONAL A EVALUAR:
-{propuesta_texto}
-
-PROPUESTA DE ECONOMÍA: {res_eco.text[:350]}
-PROPUESTA DE EDUCACIÓN: {res_edu.text[:350]}
-
-Emite tu dictamen ministerial (máx 3 párrafos). Evalúa el orden público, la seguridad jurídica, la desburocratización y la aceptación cívica de la medida.
-"""
-            res_int = generar_con_reintento(client, prompt_int)
-            
-            with st.expander("🛡️ Dictamen del Ministro de Interior", expanded=True):
-                st.markdown("<span class='badge-int'>INTERIOR & GOBERNANZA</span>", unsafe_allow_html=True)
-                st.write(res_int.text)
-                
-            time.sleep(1.0)
-            
-            # 4. Primer Ministro
-            st.write("👑 **4. El Primer Ministro sintetiza el Dictamen Tecnocrático y el Hilo para Redes...**")
-            prompt_pm = f"""
-{INSTRUCCION_PRIME_MINISTER}
-
-PROPUESTA ORIGINAL:
-{propuesta_texto}
-
-DEBATE DE LOS MINISTROS:
-- ECONOMÍA: {res_eco.text}
-- EDUCACIÓN: {res_edu.text}
-- INTERIOR: {res_int.text}
-
-Emite la resolución final estructurada:
-1. VEREDICTO FINAL: [APROBADA CON CONDICIONES] o [VETADA POR INVIABILIDAD].
-2. MEDIDAS EJECUTIVAS: 3 compromisos operativos consensuados.
-3. HILO OFICIAL PARA REDES SOCIALES (Twitter/X e Instagram):
-   - Tweet 1: Anuncio formal y veredicto con datos clave.
-   - Tweet 2: Partida económica y condiciones técnicas.
-   - Tweet 3: Garantías cívicas y plazos de ejecución.
-   - Tweet 4: Mensaje pedagógico a los ciudadanos.
-"""
-            res_pm = generar_con_reintento(client, prompt_pm)
-            status.update(label="✅ Consejo de Ministros finalizado. Dictamen emitido.", state="complete")
-            
-        st.divider()
-        st.subheader("📜 Dictamen Oficial del Primer Ministro")
-        st.markdown("<span class='badge-pm'>PRIMER MINISTRO</span>", unsafe_allow_html=True)
-        st.markdown(res_pm.text)
-        
-        # Registrar sesión deliberativa en el historial persistente
-        nueva_conv = {
-            "tipo": "🏛️ Consejo de Ministros",
-            "agente": "👑 Gabinete Completo",
-            "pregunta": propuesta_texto,
-            "respuesta": res_pm.text,
-            "detalles_debate": {
-                "economia": res_eco.text,
-                "educacion": res_edu.text,
-                "interior": res_int.text
-            },
-            "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "modelo": "gemini-3.6-flash"
-        }
-        st.session_state.datos_comunidad.setdefault("historial_conversaciones", []).append(nueva_conv)
-        guardar_datos_comunidad(st.session_state.datos_comunidad)
-
-# -------------------------------------------------------------
-# TAB 2: PREGUNTAS LIBRES Y TRAZABILIDAD
-# -------------------------------------------------------------
-with tab2:
     st.subheader("💬 Consulta y Preguntas Libres al Gabinete")
     st.markdown("Pregunta cualquier cuestión a los miembros del gobierno y consulta la **trazabilidad técnica (tokens, latencia y system prompt)**.")
     
@@ -415,7 +269,7 @@ with tab2:
         with st.chat_message("assistant", avatar="🏛️"):
             with st.spinner(f"{nombre_agente} analizando la cuestión..."):
                 if not api_key:
-                    st.error("Configura tu GEMINI_API_KEY en .env")
+                    st.error("Configura tu GEMINI_API_KEY en .env o en los Secrets de Streamlit.")
                     st.stop()
                     
                 client = genai.Client(api_key=api_key)
@@ -471,16 +325,16 @@ with tab2:
                 guardar_datos_comunidad(st.session_state.datos_comunidad)
 
 # -------------------------------------------------------------
-# TAB 3: HISTORIAL DE CONVERSACIONES REAL
+# TAB 2: HISTORIAL DE CONVERSACIONES REAL
 # -------------------------------------------------------------
-with tab3:
+with tab2:
     st.subheader("📜 Historial de Interacciones y Consultas")
-    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete y los debates del Consejo de Ministros.")
+    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete.")
     
     historial = st.session_state.datos_comunidad.get("historial_conversaciones", [])
     
     if not historial:
-        st.info("ℹ️ Aún no hay conversaciones registradas. Haz una pregunta en 'Preguntas Libres' o convoca un 'Consejo de Ministros' para empezar a guardar registros reales.")
+        st.info("ℹ️ Aún no hay conversaciones registradas. Haz una pregunta en 'Preguntas Libres' para empezar a guardar registros reales.")
     else:
         col_h1, col_h2, col_h3 = st.columns([1, 1, 2])
         with col_h1:
@@ -550,9 +404,9 @@ with tab3:
                     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# TAB 4: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS REAL
+# TAB 3: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS REAL
 # -------------------------------------------------------------
-with tab4:
+with tab3:
     st.subheader("🗳️ Encuesta y Buzón de Críticas sobre el Desarrollo")
     st.markdown("Sistema de métricas 100% reales. Todas las votaciones y opiniones mostradas corresponden únicamente a la participación de usuarios reales.")
     
