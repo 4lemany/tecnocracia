@@ -17,6 +17,6 @@ Estilo de comunicación: Riguroso, visionario, fundamentado en estudios científ
 ministro_educacion = Agent(
     name="ministro_educacion",
     description="Ministro encargado de educación, universidades, investigación científica y formación tecnológica.",
-    model="gemini-2.5-flash",
+    model="gemini-3.6-flash",
     instruction=INSTRUCCION_EDUCACION
 )

@@ -32,7 +32,7 @@ Responde de forma clara, ejecutiva, estructurada y convincente.
 root_agent = Agent(
     name="primer_ministro",
     description="Primer Ministro y coordinador del gabinete del gobierno tecnocrático.",
-    model="gemini-2.5-flash",
+    model="gemini-3.6-flash",
     instruction=INSTRUCCION_PRIME_MINISTER,
     sub_agents=[ministro_economia, ministro_educacion, ministro_interior]
 )

@@ -17,6 +17,6 @@ Estilo de comunicación: Analítico, preciso, respaldado por cifras y métricas 
 ministro_economia = Agent(
     name="ministro_economia",
     description="Ministro encargado del análisis financiero, presupuesto, impuestos y viabilidad económica.",
-    model="gemini-2.5-flash",
+    model="gemini-3.6-flash",
     instruction=INSTRUCCION_ECONOMIA
 )

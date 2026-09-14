@@ -17,6 +17,6 @@ Estilo de comunicación: Pragmático, enfocado en estabilidad operativa, segurid
 ministro_interior = Agent(
     name="ministro_interior",
     description="Ministro encargado de seguridad ciudadana, ciberseguridad, gobernanza y eficiencia de infraestructuras.",
-    model="gemini-2.5-flash",
+    model="gemini-3.6-flash",
     instruction=INSTRUCCION_INTERIOR
 )
