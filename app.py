@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import time
+import threading
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
@@ -39,35 +40,108 @@ from ministros.economia import INSTRUCCION_ECONOMIA
 from ministros.educacion import INSTRUCCION_EDUCACION
 from ministros.interior import INSTRUCCION_INTERIOR
 
-# Gestión persistente de datos de la comunidad, votos e historial real
+# Gestión atómica y concurrente de datos de la comunidad (Evita sobreescritura de mensajes entre usuarios)
 RUTA_COMUNIDAD = Path("datos_comunidad.json")
+FILE_LOCK = threading.Lock()
 
 def cargar_datos_comunidad():
-    datos_default = {
-        "votos": {"positivos": 0, "negativos": 0},
-        "opiniones": [],
-        "historial_conversaciones": []
-    }
-    if not RUTA_COMUNIDAD.exists():
-        with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-            json.dump(datos_default, f, ensure_ascii=False, indent=2)
-        return datos_default
-    try:
-        with open(RUTA_COMUNIDAD, "r", encoding="utf-8") as f:
-            datos = json.load(f)
-            if "votos" not in datos:
-                datos["votos"] = {"positivos": 0, "negativos": 0}
-            if "opiniones" not in datos:
-                datos["opiniones"] = []
-            if "historial_conversaciones" not in datos:
-                datos["historial_conversaciones"] = []
-            return datos
-    except Exception:
-        return datos_default
+    """Lee siempre la versión más reciente del disco de forma segura."""
+    with FILE_LOCK:
+        datos_default = {
+            "votos": {"positivos": 0, "negativos": 0},
+            "opiniones": [],
+            "historial_conversaciones": []
+        }
+        if not RUTA_COMUNIDAD.exists():
+            try:
+                with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
+                    json.dump(datos_default, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            return datos_default
+        try:
+            with open(RUTA_COMUNIDAD, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+                if "votos" not in datos:
+                    datos["votos"] = {"positivos": 0, "negativos": 0}
+                if "opiniones" not in datos:
+                    datos["opiniones"] = []
+                if "historial_conversaciones" not in datos:
+                    datos["historial_conversaciones"] = []
+                return datos
+        except Exception:
+            return datos_default
 
-def guardar_datos_comunidad(datos):
-    with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=2)
+def agregar_conversacion_al_historial(nueva_conv):
+    """Añade la conversación a la lista fresca en disco para evitar perder datos por concurrencia."""
+    with FILE_LOCK:
+        datos = {
+            "votos": {"positivos": 0, "negativos": 0},
+            "opiniones": [],
+            "historial_conversaciones": []
+        }
+        if RUTA_COMUNIDAD.exists():
+            try:
+                with open(RUTA_COMUNIDAD, "r", encoding="utf-8") as f:
+                    datos = json.load(f)
+            except Exception:
+                pass
+        
+        datos.setdefault("votos", {"positivos": 0, "negativos": 0})
+        datos.setdefault("opiniones", [])
+        datos.setdefault("historial_conversaciones", [])
+        
+        datos["historial_conversaciones"].append(nueva_conv)
+        
+        try:
+            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            st.error(f"Error guardando en historial: {e}")
+            
+        st.session_state.datos_comunidad = datos
+
+def registrar_voto(es_positivo):
+    """Registra el voto refrescando el disco."""
+    with FILE_LOCK:
+        datos = cargar_datos_comunidad()
+        if "votos" not in datos:
+            datos["votos"] = {"positivos": 0, "negativos": 0}
+        if es_positivo:
+            datos["votos"]["positivos"] += 1
+        else:
+            datos["votos"]["negativos"] += 1
+            
+        try:
+            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        st.session_state.datos_comunidad = datos
+
+def agregar_opinion(nueva_op):
+    """Añade opinión de forma atómica en disco."""
+    with FILE_LOCK:
+        datos = cargar_datos_comunidad()
+        datos.setdefault("opiniones", []).append(nueva_op)
+        try:
+            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        st.session_state.datos_comunidad = datos
+
+def vaciar_historial_conversaciones():
+    """Vacía el historial en disco."""
+    with FILE_LOCK:
+        datos = cargar_datos_comunidad()
+        datos["historial_conversaciones"] = []
+        try:
+            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
+                json.dump(datos, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        st.session_state.datos_comunidad = datos
 
 if "datos_comunidad" not in st.session_state:
     st.session_state.datos_comunidad = cargar_datos_comunidad()
@@ -165,8 +239,9 @@ with st.sidebar:
     
     st.divider()
     
-    # Métricas reales de votación ciudadana en el sidebar
-    votos = st.session_state.datos_comunidad["votos"]
+    # Cargar datos frescos en sidebar
+    datos_actuales = cargar_datos_comunidad()
+    votos = datos_actuales.get("votos", {})
     pos = votos.get("positivos", 0)
     neg = votos.get("negativos", 0)
     total_votos = pos + neg
@@ -233,7 +308,7 @@ with tab1:
         "💼 Ministro de Economía y Hacienda (Presupuesto, Impuestos, ROI)": ("Ministro de Economía", INSTRUCCION_ECONOMIA),
         "🎓 Ministro de Educación y Cultura (STEM, Leyes, Talento)": ("Ministro de Educación", INSTRUCCION_EDUCACION),
         "🛡️ Ministro de Interior (Seguridad, Desburocratización, Orden)": ("Ministro de Interior", INSTRUCCION_INTERIOR),
-        "👥 Gabinete Completo (Mesa Redonda Interministerial)": ("Consejo de Ministros", INSTRUCCION_PRIME_MINISTER + "\n\nResponde ofreciendo la postura de Economía, Educación e Interior y la síntesis final del Primer Ministro.")
+        "👥 Gabinete Completo (Mesa Redonda Interministerial)": ("Consejo de Ministros", INSTRUCCION_PRIME_MINISTER + "\n\nResponde ofreciendo una breve pincelada de Economía, Educación e Interior y la síntesis final del Primer Ministro.")
     }
     
     nombre_agente, prompt_sistema = prompts_map[interlocutor]
@@ -268,7 +343,20 @@ with tab1:
                     st.stop()
                     
                 client = genai.Client(api_key=api_key)
-                prompt_completo = f"{prompt_sistema}\n\nPREGUNTA DEL CIUDADANO:\n{pregunta_usuario}\n\nResponde directamente con rigor técnico y honestidad."
+                
+                # Regla de adaptabilidad al prompt para respuestas simples ante saludos o preguntas triviales
+                prompt_completo = f"""
+{prompt_sistema}
+
+REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
+- Si el mensaje del ciudadano es un saludo, una pregunta de cortesía o una duda sencilla sobre tus funciones (ej: "Hola", "Buenos días", "¿Para qué sirves?", "¿Quién eres?", "¿Qué haces?", "Gracias"):
+  Responde de forma amable, cercana y muy breve (máximo 1 o 2 frases simples) explicando quién eres y ofreciéndote a ayudar. NO generes informes largos ni tecnicismos.
+- Si el mensaje es una propuesta, ley, dilema o consulta técnica/política real:
+  Responde con la profundidad y el rigor correspondiente a tu cargo.
+
+MENSAJE DEL CIUDADANO:
+{pregunta_usuario}
+"""
                 
                 t0 = time.perf_counter()
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
@@ -307,7 +395,7 @@ with tab1:
                     "trace": trace_data
                 })
                 
-                # Guardar automáticamente en el historial persistente de conversaciones
+                # Guardado atómico e inmune a concurrencia
                 nueva_conv = {
                     "tipo": "💬 Consulta Directa",
                     "agente": nombre_agente,
@@ -316,17 +404,18 @@ with tab1:
                     "fecha": fecha_completa,
                     "telemetria": trace_data
                 }
-                st.session_state.datos_comunidad.setdefault("historial_conversaciones", []).append(nueva_conv)
-                guardar_datos_comunidad(st.session_state.datos_comunidad)
+                agregar_conversacion_al_historial(nueva_conv)
 
 # -------------------------------------------------------------
-# TAB 2: HISTORIAL DE CONVERSACIONES REAL
+# TAB 2: HISTORIAL DE CONVERSACIONES REAL (LECTURA FRESCA DE DISCO)
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📜 Historial de Interacciones y Consultas")
-    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete.")
+    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete por todos los ciudadanos.")
     
-    historial = st.session_state.datos_comunidad.get("historial_conversaciones", [])
+    # Cargar siempre la información más fresca de disco
+    datos_frescos = cargar_datos_comunidad()
+    historial = datos_frescos.get("historial_conversaciones", [])
     
     if not historial:
         st.info("ℹ️ Aún no hay conversaciones registradas. Haz una pregunta en 'Preguntas Libres' para empezar a guardar registros reales.")
@@ -338,8 +427,7 @@ with tab2:
             st.metric("Último Registro", historial[-1]["fecha"].split(" ")[1] if historial else "--:--")
         with col_h3:
             if st.button("🗑️ Vaciar Historial de Conversaciones", use_container_width=True):
-                st.session_state.datos_comunidad["historial_conversaciones"] = []
-                guardar_datos_comunidad(st.session_state.datos_comunidad)
+                vaciar_historial_conversaciones()
                 st.success("Historial de conversaciones vaciado con éxito.")
                 st.rerun()
                 
@@ -405,6 +493,8 @@ with tab3:
     st.subheader("🗳️ Encuesta y Buzón de Críticas sobre el Desarrollo")
     st.markdown("Sistema de métricas 100% reales. Todas las votaciones y opiniones mostradas corresponden únicamente a la participación de usuarios reales.")
     
+    datos_voto = cargar_datos_comunidad()
+    
     # 1. Sistema de votación real
     st.markdown("#### 1. Votación de Aprobación del Proyecto")
     
@@ -412,26 +502,24 @@ with tab3:
     
     with col_vote1:
         if st.button("👍 Me gusta el proyecto", use_container_width=True, disabled=st.session_state.ha_votado):
-            st.session_state.datos_comunidad["votos"]["positivos"] += 1
-            guardar_datos_comunidad(st.session_state.datos_comunidad)
+            registrar_voto(True)
             st.session_state.ha_votado = True
             st.success("¡Gracias por tu voto a favor!")
             st.rerun()
             
     with col_vote2:
         if st.button("👎 No me convence", use_container_width=True, disabled=st.session_state.ha_votado):
-            st.session_state.datos_comunidad["votos"]["negativos"] += 1
-            guardar_datos_comunidad(st.session_state.datos_comunidad)
+            registrar_voto(False)
             st.session_state.ha_votado = True
             st.info("Voto registrado. Agradecemos que nos dejes tu crítica abajo.")
             st.rerun()
             
     with col_stat:
-        v = st.session_state.datos_comunidad["votos"]
-        total = v["positivos"] + v["negativos"]
-        pct = round((v["positivos"] / total) * 100, 1) if total > 0 else 0.0
+        v = datos_voto.get("votos", {})
+        total = v.get("positivos", 0) + v.get("negativos", 0)
+        pct = round((v.get("positivos", 0) / total) * 100, 1) if total > 0 else 0.0
         if total > 0:
-            st.markdown(f"**Resultado actual:** **{pct}% de aprobación** ({v['positivos']} a favor de {total} votos)")
+            st.markdown(f"**Resultado actual:** **{pct}% de aprobación** ({v.get('positivos', 0)} a favor de {total} votos)")
             st.progress(pct / 100.0)
         else:
             st.markdown("**Resultado actual:** **Sin votos aún** (0.0% de aprobación)")
@@ -463,13 +551,12 @@ with tab3:
                     "mensaje": mensaje_opinion.strip(),
                     "fecha": datetime.now().strftime("%d/%m/%Y %H:%M")
                 }
-                st.session_state.datos_comunidad["opiniones"].append(nueva_op)
-                guardar_datos_comunidad(st.session_state.datos_comunidad)
+                agregar_opinion(nueva_op)
                 st.success("¡Opinión registrada con éxito!")
                 st.rerun()
                 
     st.markdown("#### 📬 Opiniones Reales de la Comunidad")
-    opiniones = st.session_state.datos_comunidad.get("opiniones", [])
+    opiniones = datos_voto.get("opiniones", [])
     if not opiniones:
         st.info("Aún no hay mensajes en el buzón. ¡Sé el primero en opinar!")
     else:
