@@ -11,12 +11,12 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
-# Configuración de página de Streamlit
+# Configuración de página adaptada para móvil y escritorio (sidebar automático en móvil)
 st.set_page_config(
     page_title="Tecnocracia | Partido y Gobierno Multiagente",
     page_icon="🏛️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"  # En móviles se colapsa automáticamente para no tapar el texto
 )
 
 try:
@@ -78,39 +78,65 @@ if "chat_messages" not in st.session_state:
 if "ha_votado" not in st.session_state:
     st.session_state.ha_votado = False
 
-# Estilos CSS premium dark mode
+# Estilos CSS premium dark mode con Responsive Design para Pantallas Móviles
 st.markdown("""
 <style>
     .main { background-color: #0b0f19; }
+    
+    /* Ajuste de márgenes globales y wrapping para móviles */
+    p, span, div, h1, h2, h3, h4, h5, h6, .stMarkdown {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        hyphens: auto;
+    }
+    
     .stMetric {
         background: linear-gradient(135deg, rgba(26, 34, 52, 0.8), rgba(15, 23, 42, 0.8));
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        padding: 14px;
+        padding: 12px;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
     .opinion-card {
         background: rgba(30, 41, 59, 0.6);
         border-left: 4px solid #3b82f6;
         border-radius: 8px;
-        padding: 14px;
+        padding: 12px;
         margin-bottom: 12px;
     }
     .trace-pill {
         display: inline-block;
-        padding: 2px 8px;
+        padding: 3px 8px;
         border-radius: 9999px;
         font-size: 0.75em;
         font-weight: 600;
-        margin-right: 6px;
+        margin-right: 4px;
+        margin-bottom: 4px;
+        white-space: normal;
     }
     .pill-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
     .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
     .pill-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-    .badge-eco { background-color: #065f46; color: #6ee7b7; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-    .badge-edu { background-color: #1e40af; color: #93c5fd; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-    .badge-int { background-color: #831843; color: #f472b6; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
-    .badge-pm  { background-color: #78350f; color: #fde68a; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+    .badge-eco { background-color: #065f46; color: #6ee7b7; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-edu { background-color: #1e40af; color: #93c5fd; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-int { background-color: #831843; color: #f472b6; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-pm  { background-color: #78350f; color: #fde68a; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+
+    /* REGLAS RESPONSIVAS ESPECÍFICAS PARA MÓVILES (pantallas < 768px) */
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 1rem !important;
+        }
+        .stMetric {
+            padding: 8px !important;
+            margin-bottom: 8px;
+        }
+        h1 { font-size: 1.6rem !important; }
+        h2 { font-size: 1.3rem !important; }
+        h3 { font-size: 1.1rem !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
