@@ -1,0 +1,53 @@
+[
+  {
+    "eval_case_id": "test_saludo_adaptativo",
+    "conversation": [
+      {
+        "user_content": "Hola, ¿para que sirves?",
+        "expected_intermediate_agent_calls": []
+      }
+    ]
+  },
+  {
+    "eval_case_id": "test_gestion_economica",
+    "conversation": [
+      {
+        "user_content": "Quiero saber cual es la situacion economica actual del pais.",
+        "expected_intermediate_agent_calls": [
+          "ministro_economia"
+        ]
+      }
+    ]
+  },
+  {
+    "eval_case_id": "test_inversion_educacion",
+    "conversation": [
+      {
+        "user_content": "¿Como planean mejorar la educacion y las universidades?",
+        "expected_intermediate_agent_calls": [
+          "ministro_educacion"
+        ]
+      }
+    ]
+  },
+  {
+    "eval_case_id": "test_seguridad_interior",
+    "conversation": [
+      {
+        "user_content": "¿Que medidas de seguridad e interior se estan implementando?",
+        "expected_intermediate_agent_calls": [
+          "ministro_interior"
+        ]
+      }
+    ]
+  },
+  {
+    "eval_case_id": "test_tema_aborto",
+    "conversation": [
+      {
+        "user_content": "¿Que opinas del aborto?",
+        "expected_intermediate_agent_calls": []
+      }
+    ]
+  }
+]

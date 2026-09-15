@@ -1,0 +1,42 @@
+{
+  "eval_set_id": "eval_set_1",
+  "name": "eval_set_1",
+  "eval_cases": [
+    {
+      "eval_id": "hola",
+      "conversation": [
+        {
+          "invocation_id": "e-bebff2ec-1668-4972-b5df-6424864457de",
+          "user_content": {
+            "parts": [
+              {
+                "text": "hola"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "¡Hola! Soy el Primer Ministro de este gobierno tecnocrático y estoy aquí para coordinar a nuestro gabinete y ayudarte a resolver cualquier duda o problema. ¿En qué te puedo ayudar hoy?"
+              },
+              {
+                "text": "",
+                "thought_signature": "ErUGCrIGARFNMg9GK3LsA6DuheuN0cQdJCS2xaCAirUpPYswMz1ewgJCbc6EE876gtW16AyqOPU_JdF_9bgTB9oVZ6YAeE0gVNGpzzJPZL_RddpOhZUNZLXr_X89dOOqdXdYq2nUGrCSiBlujHf2AtVr_XT9vGPYbZETxH93LK_pR4jrVjrb0Dhd9d9a31Rdpgu4Td1tVvfXmUcQVMOFGY1ViqVBjcwc-Z6uCSvYkvFVyoT5GVhbzh_i26VCuxx5hfLMNY0-uUIwbni4YEaPN_gFVvdMpFeiTjwo-Dkxv8H88XGiVeO6bYg7Wvah1s8xLiqqhqfcUvcQjKcJzp-jlEYy-46KLefhL0TCD5yBtkuLXfbREjbB_RVbwfL0lWE_Lh2aE-HOYOz3lUVIYNs4jHNdacbbtwJ3rSxhA3CRGPJkE1nzGz9X9VTePT2FBtOhJs3iNasQP6ztPEcfHmxrCAMrDA-Sv4pb9Yg0FSElxzpMDMhp1Fso9xw2KZ82Qz6wB29Pnb664ZAvBY4Z4MprJYaoGNE2Dy25umRFdthjVJ3C2JOYtjPyG3jYx8uVjmi8TFHgBrGC49v72INtQNW9vzniyTO0ksUg6JsRNwmLeJ3lkK8endVEmeF6mqtC0rwxrJRpqze6w4nOElRTfwFIW8Opa1vZPXipirFmoRsk03NbU0JWe1HJTmeeWHUXhl0EE4v8zHnwWPtRRAW03MCkIdXt06-qK1rI-G35AtZkc_FPPgWEheI19_81bMROUi1u9PxxOciKDIF-ZrB_HdSgaXsm15TFbuJ0eWuKqdXJXmIR0HaMh3Rq1lBXWH1giIZ48C8ofDSM01pvgSifxCMXl_eve868x619ehk5iqVnRvwx-L9yDCuJ-1E3yhKBNBA1AciIt9mBJ_rK_ZeVCqHRETq8nOdW1-jwBacA2qr7RoYKYA95hgEa45FJGDlJS2wopZ8ekhKgPna8j9rVav3oCSZWVGOuRwmcx9J2ApbC6NBm-9cyEDMkfJjzrhkwEgw_KbNSlKwL630g0tjWrWNV1NcXUQTbok4lIJ4ABB0U9Ry6KoAJeky-5g5qOWJ_drQJAgxVwM3jfeM="
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {},
+          "creation_timestamp": 1789469584.7742376
+        }
+      ],
+      "session_input": {
+        "app_name": "primer_ministro",
+        "user_id": "user"
+      },
+      "creation_timestamp": 1789469607.6542163
+    }
+  ],
+  "creation_timestamp": 1789469602.6703203
+}

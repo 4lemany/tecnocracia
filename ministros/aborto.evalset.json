@@ -1,0 +1,42 @@
+{
+  "eval_set_id": "aborto",
+  "name": "aborto",
+  "eval_cases": [
+    {
+      "eval_id": "que_opinas_del_aborto",
+      "conversation": [
+        {
+          "invocation_id": "e-e522d4e1-480b-4890-83ad-4494d534a766",
+          "user_content": {
+            "parts": [
+              {
+                "text": "que opinas del aborto"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Desde la perspectiva estrictamente técnica y de gestión de los recursos públicos que me compete, mi análisis sobre las políticas de salud reproductiva y la interrupción voluntaria del embarazo se centra exclusivamente en sus variables socioeconómicas, su impacto presupuestario y la sostenibilidad fiscal.\n\nEl análisis de esta materia abarca tres ejes principales:\n\n1. **Eficiencia y costes en el sistema sanitario:** \n   Desde un punto de vista fiscal, la regulación e integración de la salud reproductiva en el sistema público permite presupuestar y planificar los recursos sanitarios de forma eficiente. Diversos estudios de economía de la salud muestran que la atención médica regulada y preventiva reduce significativamente los costes extraordinarios en el sistema de urgencias derivados de complicaciones por procedimientos clandestinos o inseguros.\n\n2. **Participación laboral y capital humano:**\n   La posibilidad de planificación familiar influye de forma directa en la incorporación y permanencia de las mujeres en el mercado laboral, reduciendo la brecha de género y aumentando los ingresos fiscales por impuestos directos (como el IRPF) e indirectos. La previsibilidad en las trayectorias académicas y laborales optimiza el retorno de la inversión pública previa en educación y formación de capital humano.\n\n3. **Impacto demográfico y modelo de bienestar:**\n   A largo plazo, las decisiones en materia de salud reproductiva interactúan con la tasa de natalidad y la pirámide poblacional. Un contexto de envejecimiento demográfico exige equilibrar las políticas de apoyo a la familia y la maternidad —necesarias para la sostenibilidad de las pensiones y la fuerza laboral futura— con la garantía de derechos individuales y la certidumbre económica de los hogares.\n\nEn conclusión, el enfoque de este ministerio busca optimizar la asignación presupuestaria garantizando la seguridad sanitaria, minimizando los costes indirectos para el Estado y promoviendo un marco que favorezca la estabilidad económica y laboral de la ciudadanía."
+              },
+              {
+                "text": "",
+                "thought_signature": "EsEcCr4cARFNMg-UxEtRZVR_nu1wf7dTh0HfbraiZ5xORW6QX_J0MG0ryTJeCH-yWy1ajYf8eMyVEf6ru32pnLmFbEuZmqNOUvUejtSWt4ZZx6BDL6izM20DSBh0xMcLih69TveRvuX5FtXJN24fZt-zVfSjiQ4ErmPvCU9oMGrzJuYVafjfb8T8QyQcEal3HyLNmdBzP38uIzo__oUnt2B__KzCOLiAt28rWj6ftpvi9AuHdPN-h6zbXUOAj_thOZaIEn4wf9LC31yEnoGZb2rFTCqMcjWR7NXZSQ-e5pwf7wCZJLVxbO67SEET7cokPOnKooxstGVugTigkdybe_KsrL9-XCZVIpH8PTVphG6O2o8uON1FPbls_LTDfKoc9kGaQQS3utYHQ1SSWomxSAJyCcqh63cenvl3Yr1fCOrKRzWk29-korKg4KBa-Mm3aFr_VQ51j3KXlypuZ-vd37MpftgySiTcmBD_WHL_StWv8XoiUDNRwhQX8ZcfQFj5jxhd-v8CoMHKrjwwGa98FiaxI3kK07i8-21SNNwPFRjK336FoGUO9PXspeCaUmWEynViHGvArHeO1RmZiJlVTsfBWgoHfs48RHvw2Dv4l06T1_GAqBFq05xe-1X2ln583l_RzwZqt_rqzHCSxJe3uuhykGx9RD3DHwS-tiHk7v-kz4WDvpPwODxH0GqDF3npI2GexxautQAdrTy9PVNS8FdoGY-yeIi-68Sq63aYbFjmbzJtaZQb1RJWErt4ncFfv5S1d8UKKXr4TifUsdatsJ6f0L8GEyO1OynBSFjoiovJv-MmCFN2YH72ibVM8KwxV1eAwzasDpVXGjtbQtzWAlZJ7iCCvZ5o5QeR6hDWT8qCzHAkwhAWZv018y2IbbItpGWNseBI40zI0tKkiBwOvkuKZBKFmQYzko3Swmz4Mzvi1eiM9Md_8gzZ89fgbpxfwFna0tYmgY-zYEeaadUyBUgW4DqdJxdjs51dSJvnLxvUiS7-feVz0LKyGmDUflTd_AO0Qsu9d-gm436ga9vVcBBkwgr91GffkeGTcsRopnjWCrS_7ttKrji6O7hA43rcKuUbw8PluiHCCNSB-LLEF2Et8sVtgWC7PbHwnRI2ki0CgMKurvhl71buKvk_ho6EMJwnFwpMpW4cjhm1JLs-5N7MNeh7qd6_G5dJTIiuj9Po0rYln5k-K6slmCXoM-yWKZl3yP2TsUSH_xKNRgv6Lh1TgIjykFfiCeqNh9PU6sJ99DmdoPVrOPQb82E7mEL8zVRGuHgIQWCWfACLa42Ffb4v81UMYRG90nD5mVMSwmbwNb9lLuo8FKQ2dxaDveSias789n_lB4zxMI1Hnyz2_J-5zuH4C-KsmdpeW2kLNQb3lkq2KeLfU_GvaSF_8XBEVR6JnrHQmG4vZtdQCc6TGfG19c2EvgIqqhdKMlQKaXKxDnjAeqLHCyDn_YoojT2NQiMXy4OBydPCH_DxRQXl6xTJSb3tieS-nNT2C-Bhlmcxlqz-SP5h_DvAJ0Gc0aZxupWkNmPPYgYwbgDx9JC6DSpQj-GVM42mXaJq8GI_3HQlMzERtjKOtV0lr8g4afbK_I2MPrSaWRb-edOQIWxURSjlckqSlR-soaRLcZA0-pZCpNGTW0Q76j0wgPcj-KQBA2blB-DtA-ENpDlSHaK6ukKiudvhSgVf1iuDhehCjC28dAI_swHYif9tDsm3jZdWjGI7CoElMpumR4HGp67E2JbC15Mm5Q7KH6D-SaobrNf29nsGAOvDRN2fbNlKOeEpx0OABgAcd3CP3Kz11bKyHUz3uIi5xoSqRBWr2_Tb05sK84qlGMLLa5x90U70dU4iLNCJnjDAOTqyvcmpYeu8TLc6KDcQ--7tZgYn71tj2Aymi18EO6NsRfOLeBGMtAiVQ-DLOgQsejKbePWKXkOOEUiKwbievDmZXxdqyvk4NGJ10rkV7UQtjdJSgs7lKSOJ_X4aFD36ZCuWv4MckBh7zeMwnHKeDBmoJvet8WO__68zFw19OukJTEMrNc3n6hjoDkhuf1QARsLgtC48RmnD0UrqrvglBsN7grj6dh2l1-ocwllNtBAyH-vUUhs_ZDf8OEmBvHFgb78ahwWKQtbP0NWBsk1RTVg3-qO3P2UPkBKcaTgcWOZYNQOxeiKAQcXb_J6QsuCoa07LSH1vFIe8uC8EFEzzr6GJN80zfQdDcTEuvRrP5fnR1D3sa4w8mqafP0c3BGI0Ct5DN7TNJhzUMkrz9uzsoyFKYkWZZn5Tty1p7XyOjbGXyzLAere_ZN88Yp2Ul-P24Xst_7UpnP8WmUAvZEnsALoDDUrnHKaGOccvCp5BLpsF5mnGEjmL67n9Lgp-zKOBT0doUh0JpUGVhVrvX7VWT8nZbHhk3UMsVZ0vYriJQV9wLtASn-Dnew7LcTWQWebXVkVXWrX4bTEluGiYgXpJWs5wEoIK4SYydLhNeseFDtrdKaHN2lugZziI1wEIz-Ap6EhLIVn2efEUcVYRpdwRZSE0h5Xii4XWs53MJl1xOiTKVdJCT4eWeSLtipMCTs0YAOWCMlQKWKnBKyA01fyq5vmzNAB6mX5rJNgx_1GANtQ9NghKiuF3e08j4cU0eAUruj1Jv9JGolS6umz7UVuqELjvorYWziY5yfqIDPcwnlabkrj2KcTgSxcG82pglotumPvI4sIKcMMumt3A_xtPLUnBB9EiSXFRlYlMKuYfPNAIYmZ6uPE_xyAeippUN9CKIRc5N6FucDWxqLLjcs4wC_OA0FqoXnUWvirUvdrX_QhwUIXlCYe8pwxGmvrgS8UXr-ZZppggvJ6wgKV1QYMZ2pJHK0ZIo8oSwUcL1b-yourPTfUC5hq3SeEGlxJYlyNDZa3GbbFwVnzALnu0XfT8PF-S3eFzO8n1TB-NhsPL02OT_x2pCeNw7a09jG0cEDUQ7zg4utVZyWquzShksSscSPcGiNdeW1LiuDU40RseemXObi92FzDmZJ9_Oobb5Sb8jhND4mP1brN1nA-Cit_PxVfCoidoSa95zk1FVAA8vR700ZPYHuzjPqFqWhiggDCrHj7xcNWm81sa4SeRt_vXCKmzoAcrimFj4N3T5F5fWCxj-g_eUbDx_gXusJ_Psf1lYefj6ubujSxzMAdZ-vRwsb_murZikjRv4vcjjYTOpRXtqtGmsNjA6n3aymB1LzYEwl9iSK40OhRNZyG254s_KHETSqXOt8r0c6eYQLAOJdhGv7RnsueXN2hl5PfrtEiOwmnzvXtYiGIN4hBednz6YQwnoeZByZBznmkApWGPZCiMBkkgBAED94t5mM5KGam54J2gMfqpXCmtkFJLqnNkdFv9Hu4SXeVcHOzmoAZVop-GyTI9bXVvkhvkjznfMOFYnrQ_OgHMj3_4lquYcAdqv8jGAWnwQhizHpzytoFcihZmOqUy_-f2dgQHkIGCkmfj01mM7GkZNaW2Yl_sGBsNAWeoEGihkNsLOef3dPeyoWWW9-_KLwUxLb12T9yL42RMuPPcpeUb5drhsRfgKIy9HTY3ZnCGCnJixPE5hz1TY36eXBCGL-CdT57-mbkROHtWybEqutLln02M5KKqT05JbcUT9wSmQLU40ybDQcgslGOvrtPTCIR-glL6Z9GrLwSmX8qcF2bDtzCg93Y_i090mnM9moTQz8WPtxSTUvtqpqP4RdOR9bMCQz48XtOylaVHImvfuj3kVsaJ_mSTuBoLOg0UTAB0yuZWwCzd-v9-LiHzQuZSEbxAMYu1eGoc_pfFSZLZr470eT4hn2vQ6Rlx1Elfp3VVZdE2MVEkbusJxmmqXGiIKKpCT0voAc45-8kNL7B5lxgaG2Hzox23cHgbi2gIMNkQ9Fi6Ulphs5Q8FCbbX1ZuDSEFdNcOtVWghWjxMhA7VW0e8m40oloZqpYmKRCsswVHJWIyMlwAueINoTnNQMFeDCfkbCqbbS-ZloUDvUTSXFoyPgMCeIWx2XcsBd721iBx73nfAW_mUX6KcyUtlEvpMW_wv88dI4s2L-U5LFfMq9fV-vtR5r03QDOzXynpuwD4ecdXJ3x1XWpU8r0bFmXHEod88XUV_4QApii6Rl3OtS38ZXXV0CTd2AxnOfGTqkM_zY3y3BIrIIsxkitUDZgpdfpbO9MQRDlaDCB3hJ6Nl0c2Gi58oHsnvGsqioUvhxLWCiHG13UUBxmGA_ATUqr4rhQoz7gWkZLG6JovZosVoMM-DzMoagPRo9ByV7-h8St3x8hfnOyA_Ili3VgWXZ5W42bCSINa6Zsj2Owxe_6ALUCrJVv0XybzkO_Eu5nYRnLXxc8nFfpqpV85tS9Hn_4vgg_lbS9dusvG1P4hBeP5axEAcKiX7DS8HHR9bjcbqVS5qUXJTXoVWJ3BVIKlD8le5G3Q4jCp4bG4Z14k_jfnJQbMkLyM6Zt4azuaviiD73enbxU9hkcpJyTeJSxP_m5DkJvwvLtq2p8bOsyx_wWpPrxVuD3--UqdfneD71-Vaga5l_P2HrxdMGC1MOrOow5t0wHFhdwOiQTW09IQNBNY0TlOFJxVaNfRiiVmrE7eLGazxOi7xkZ70Z21Wty7rRfvOyTnEWLpQSN3K6p2cagO5l2MwwIAsLoqzp7Qcriknqv3xnyPO-uwdg8bLRiwppZRfGN_2WdSaQJREE-EkQVm5Wo0a5J4-ezesBbgS_bXlfldwllEyTuF-cOZBXuYirFMmVkh-nM6b7VAY37CBY57Uv7qyMlLSit8d_c39L3sBFk_henYvHJWEMc_bCj6btds7aSXAHBYh6Nn9LH0-mM1ApW9V4tc0XLOwyRXz470-sYcq5tTTb7X_BgJQTYyn7aPXl5T2KCVNn_PQQ=="
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {},
+          "creation_timestamp": 1789470803.7334826
+        }
+      ],
+      "session_input": {
+        "app_name": "ministros",
+        "user_id": "user"
+      },
+      "creation_timestamp": 1789470839.726738
+    }
+  ],
+  "creation_timestamp": 1789470831.1239796
+}
