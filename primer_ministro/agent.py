@@ -1,4 +1,3 @@
-"""Agente Principal (Root Agent): Primer Ministro Tecnocrático para Google ADK."""
 import os
 import sys
 from pathlib import Path
@@ -24,13 +23,13 @@ REGLA DE ADAPTABILIDAD INTELIGENTE:
   * NO generes informes largos ni estructuras complejas.
   * Responde de forma amable, cercana y breve (1 o 2 frases simples) explicando quién eres y ofreciéndote a ayudar.
 - Si el ciudadano plantea un dilema, problema regional o consulta técnica real:
-  * Dicta tu resolución estructurada con rigor técnico, medidas operativas y comunicado.
+  * Dicta tu resolución estructurada con rigor técnico, medidas operativas y comunicado, delegando en tus ministros especializados.
 """
 
 root_agent = Agent(
     name="primer_ministro",
     description="Primer Ministro y coordinador del gabinete del gobierno tecnocrático.",
-    model="gemini-3.6-flash",
+    model=os.getenv("MODEL_NAME", "gemini-2.0-flash"),
     instruction=INSTRUCCION_PRIME_MINISTER,
     sub_agents=[ministro_economia, ministro_educacion, ministro_interior]
 )
