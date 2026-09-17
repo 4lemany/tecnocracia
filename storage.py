@@ -11,7 +11,7 @@ import logging
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 logger = logging.getLogger("tecnocracia.storage")
 

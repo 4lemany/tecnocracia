@@ -25,24 +25,38 @@ jobs:
       - name: Descargar código fuente
         uses: actions/checkout@v4
 
+      - name: Verificar configuración de secretos de Google Cloud
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "::warning title=Secretos de GCP pendientes::Para habilitar el despliegue automático desde GitHub Actions, añade los secrets GCP_SA_KEY y GCP_PROJECT_ID en Settings > Secrets and variables > Actions."
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
       # Autenticación segura con Google Cloud
       # Soporta Workload Identity Federation (WIF) si existe, o Service Account Key (JSON)
       - name: Autenticación en Google Cloud
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Configurar gcloud CLI
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Autenticar Docker con Artifact Registry
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
 
       # Construcción y publicación de la imagen en Artifact Registry
       - name: Construir y etiquetar imagen Docker
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           IMAGE_URI="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
           LATEST_URI="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:latest"
@@ -55,8 +69,9 @@ jobs:
       # Despliegue a Cloud Run con los parámetros del nivel gratuito (Free Tier Siempre Gratuito)
       # - min-instances: 0 -> Escala a CERO en reposo (0€ de consumo)
       # - max-instances: 1 -> Límite estricto de protección contra costes
-      # - memory: 512Mi, cpu: 1 -> Dentro del tramo perpetuo gratuito de Cloud Run
+      # - memory: 1Gi, cpu: 1 -> Dentro del tramo perpetuo gratuito de Cloud Run
       - name: Desplegar servicio en Google Cloud Run
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           gcloud run deploy ${{ env.SERVICE }} \
             --image="${{ env.IMAGE_URI }}" \
@@ -72,6 +87,7 @@ jobs:
             --quiet
 
       - name: Mostrar URL de acceso público
+        if: steps.check_secrets.outputs.has_secrets == 'true'
         run: |
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE }} --platform managed --region ${{ env.REGION }} --format 'value(status.url)')
           echo "=========================================================="

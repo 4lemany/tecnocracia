@@ -12,13 +12,14 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
-# Configuración de página adaptada para móvil y escritorio
-st.set_page_config(
-    page_title="Tecnocracia | Partido y Gobierno Multiagente",
-    page_icon="🏛️",
-    layout="wide",
-    initial_sidebar_state="auto"
-)
+# Configuración de página adaptada para móvil y escritorio (solo en ejecución de Streamlit)
+if "pytest" not in sys.modules and "unittest" not in sys.modules:
+    st.set_page_config(
+        page_title="Tecnocracia | Partido y Gobierno Multiagente",
+        page_icon="🏛️",
+        layout="wide",
+        initial_sidebar_state="auto"
+    )
 
 try:
     from dotenv import load_dotenv
@@ -46,42 +47,8 @@ from storage import (
     get_storage_backend_info
 )
 
-
-# ----------------- MOTOR DE EVALUACIÓN DE AGENTES GOOGLE ADK -----------------
-def evaluar_respuesta_adk(agente, pregunta, respuesta, duracion, tokens_in, tokens_out):
-    """Calcula las métricas de evaluación del servicio ADK (Fidelidad, Coherencia, Seguridad y Rendimiento)."""
-    tok_per_sec = tokens_out / duracion if duracion > 0 else 0.0
-    
-    if duracion < 2.0:
-        score_latencia = 100
-        grade_latencia = "A+ (Ultra Rápida)"
-    elif duracion < 4.0:
-        score_latencia = 88
-        grade_latencia = "A (Rápida)"
-    else:
-        score_latencia = 75
-        grade_latencia = "B (Estándar)"
-        
-    len_resp = len(respuesta)
-    es_saludo = any(w in pregunta.lower() for w in ["hola", "buenas", "sirves", "quien eres", "gracias", "que haces"])
-    
-    if es_saludo:
-        score_fidelidad = 98 if len_resp < 350 else 85
-        score_coherencia = 96
-    else:
-        score_fidelidad = 96 if len_resp > 120 else 82
-        score_coherencia = 95
-        
-    score_global = round((score_fidelidad * 0.4) + (score_coherencia * 0.4) + (score_latencia * 0.2), 1)
-    
-    return {
-        "score_global": score_global,
-        "fidelidad": score_fidelidad,
-        "coherencia": score_coherencia,
-        "seguridad": "PASSED (100%)",
-        "tok_per_sec": round(tok_per_sec, 1),
-        "grade_latencia": grade_latencia
-    }
+# Motor de Evaluación de Agentes Google ADK
+from evaluacion import evaluar_respuesta_adk
 
 if "datos_comunidad" not in st.session_state:
     st.session_state.datos_comunidad = cargar_datos_comunidad()
