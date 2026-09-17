@@ -547,6 +547,13 @@ with st.sidebar:
     
     st.divider()
     
+    # Cálculo de métricas de votación
+    votos = datos_actuales.get("votos", {})
+    pos = votos.get("positivos", 0)
+    neg = votos.get("negativos", 0)
+    total_votos = pos + neg
+    pct_aprobacion = round((pos / total_votos) * 100, 1) if total_votos > 0 else 0.0
+
     st.subheader("📊 Aprobación del Proyecto")
     col_v1, col_v2 = st.columns(2)
     with col_v1:
