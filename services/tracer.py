@@ -50,10 +50,27 @@ def diagnosticar_error_gemini(e: Exception) -> Dict[str, Any]:
                 "15 peticiones por minuto (RPM) y 1.500 peticiones diarias. Al interactuar de forma sucesiva "
                 "o al orquestar varios agentes y herramientas en poco tiempo, se superó transitoriamente esta tasa."
             ),
-            "accion_recomendada": "Pausa 15-20 segundos antes de enviar una nueva consulta para que la ventana de cuota se restablezca.",
+            "accion_recomendada": (
+                "Pausa 15-20 segundos para restablecer la cuota, o vincula tu clave gratuita de Groq (30 RPM / 0,00 €) "
+                "o una segunda clave de Gemini para disfrutar de failover automático continuo sin interrupciones."
+            ),
             "es_transitorio": True,
             "icono": "🚦",
             "color_badge": "#f59e0b",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 1.1 Error de autenticación en Groq Cloud
+    if "Groq" in err_str and any(k in err_str for k in ["401", "invalid_api_key", "invalid_request_error"]):
+        return {
+            "categoria": "AUTENTICACION_INVALIDA",
+            "titulo": "Clave API de Groq Cloud Inválida",
+            "codigo_tecnico": "GROQ_401 - INVALID_API_KEY",
+            "explicacion": "La clave de Groq configurada no es válida o ha sido revocada.",
+            "accion_recomendada": "Copia una clave válida desde console.groq.com/keys e introdúcela en el panel de redundancia.",
+            "es_transitorio": False,
+            "icono": "🔑",
+            "color_badge": "#ef4444",
             "detalle_tecnico": f"{err_type}: {err_str[:250]}"
         }
 

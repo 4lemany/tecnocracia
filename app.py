@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import threading
+from typing import Any, Optional, Dict, List
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
@@ -28,7 +29,12 @@ except ImportError:
     pass
 
 # Cargar API Key (Soporta Google Secret Manager, .env local y st.secrets)
-from services.secrets_manager import get_gemini_api_key, get_secrets_backend_info
+from services.secrets_manager import (
+    get_gemini_api_key,
+    get_secondary_gemini_api_key,
+    get_groq_api_key,
+    get_secrets_backend_info
+)
 api_key = get_gemini_api_key()
 
 from google import genai
@@ -232,18 +238,105 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# =====================================================================
+# CLASES Y CONECTORES MULTI-PROVEEDOR (GROQ LPU / GEMINI MULTI-KEY)
+# =====================================================================
+class GroqUsageMetadata:
+    def __init__(self, prompt_tokens: int, candidates_tokens: int):
+        self.prompt_token_count = prompt_tokens
+        self.candidates_token_count = candidates_tokens
+
+
+class GroqResponseWrapper:
+    def __init__(self, text: str, prompt_tokens: int, candidates_tokens: int, model: str = "llama-3.3-70b-versatile", failover: bool = False):
+        self.text = text
+        self.provider = "groq"
+        self.model = model
+        self.es_failover = failover
+        self.usage_metadata = GroqUsageMetadata(prompt_tokens, candidates_tokens)
+
+
+def generar_con_groq(prompt_texto: str, groq_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 1500, failover: bool = False) -> tuple[Any, Optional[dict]]:
+    """
+    Inferencia gratuita en Groq Cloud utilizando arquitectura LPU ultra-rápida.
+    Ofrece 30 RPM y 14.400 peticiones diarias gratuitas (0,00 €) sin tarjeta de crédito.
+    """
+    import requests
+    if not groq_key or not groq_key.strip():
+        return None, diagnosticar_error_gemini(Exception("API_KEY_INVALID: Groq API Key no configurada."))
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {groq_key.strip()}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "user", "content": prompt_texto}
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.4
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            t_in = usage.get("prompt_tokens", 0)
+            t_out = usage.get("completion_tokens", 0)
+            return GroqResponseWrapper(content, t_in, t_out, model=model, failover=failover), None
+        else:
+            try:
+                err_data = resp.json()
+                msg = err_data.get("error", {}).get("message", resp.text)
+            except Exception:
+                msg = resp.text
+            return None, diagnosticar_error_gemini(Exception(f"Groq API Error {resp.status_code}: {msg}"))
+    except Exception as e:
+        return None, diagnosticar_error_gemini(e)
+
+
 # Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
-def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=None, max_intentos=3):
+def generar_con_reintento(
+    client,
+    contents,
+    model="gemini-3.6-flash",
+    config=None,
+    max_intentos=3,
+    groq_key=None,
+    gemini_key_2=None,
+    proveedor_preferido="auto",
+    max_tokens=1500
+):
     """
-    Invoca a Google Gemini con política de reintentos exponenciales, control de tokens y degradación elegante.
-    Retorna (response, None) en caso de éxito, o (None, error_diag) si se agotan los reintentos
-    o se detectan bloqueos de seguridad / cuotas, impidiendo que Streamlit falle con pantalla roja.
+    Invoca a Google Gemini o Groq con política de reintentos, failover automático y observabilidad:
+    1. Si el usuario selecciona Groq de forma prioritaria, ejecuta Groq LPU (Llama 3.3 70B).
+    2. Si usa Gemini (o modo Auto): ejecuta Gemini con backoff.
+    3. Si Gemini devuelve 429 RESOURCE_EXHAUSTED (15 RPM) o 503 UNAVAILABLE:
+       - Si existe gemini_key_2: conmuta a la clave secundaria de Gemini.
+       - Si existe groq_key: failover transparente a Groq Cloud sin interrumpir al usuario.
+       - Si no hay claves secundarias: pausa con backoff exponencial.
     """
+    # Preferencia explícita por Groq
+    if proveedor_preferido == "groq" and groq_key:
+        resp_groq, err_groq = generar_con_groq(contents, groq_key, max_tokens=max_tokens, failover=False)
+        if resp_groq:
+            return resp_groq, None
+        if client:
+            st.toast("⚠️ Groq temporalmente indispuesto. Conmutando a Google Gemini...", icon="🔄")
+        else:
+            return None, err_groq
+
     ultimo_error = None
     backoff_tiempos = [2, 4]
 
     for intento in range(max_intentos):
         try:
+            if not client:
+                raise Exception("API_KEY_INVALID: GEMINI_API_KEY no configurada.")
+
             if config is not None:
                 response = client.models.generate_content(model=model, contents=contents, config=config)
             else:
@@ -270,11 +363,35 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=Non
         except Exception as e:
             ultimo_error = e
             err_msg = str(e)
-            es_transitorio = any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE"])
+            es_rate_limit = any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "quota", "QuotaExceeded"])
+            es_sobrecarga = any(k in err_msg for k in ["ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE"])
+            es_transitorio = es_rate_limit or es_sobrecarga
+
+            # Failover Nivel 1: Clave Secundaria de Gemini si es 429 / 503
+            if es_transitorio and gemini_key_2:
+                try:
+                    st.toast("🔄 Gemini Clave 1 saturada (15 RPM). Saltando a Gemini Clave 2...", icon="⚡")
+                    client_sec = genai.Client(api_key=gemini_key_2)
+                    if config is not None:
+                        resp_sec = client_sec.models.generate_content(model=model, contents=contents, config=config)
+                    else:
+                        resp_sec = client_sec.models.generate_content(model=model, contents=contents)
+                    if getattr(resp_sec, "text", None):
+                        return resp_sec, None
+                except Exception as e_sec:
+                    ultimo_error = e_sec
+
+            # Failover Nivel 2: Groq LPU Automático e Instantáneo (30 RPM, 0€)
+            if es_transitorio and groq_key:
+                st.toast("🚀 Límite de Gemini alcanzado. Conmutando a Groq LPU (Llama 3.3 70B)...", icon="🚀")
+                resp_groq, err_groq = generar_con_groq(contents, groq_key, max_tokens=max_tokens, failover=True)
+                if resp_groq:
+                    return resp_groq, None
+                else:
+                    ultimo_error = Exception(f"Gemini y Groq agotados: {err_groq.get('detalle_tecnico', '')}")
 
             if es_transitorio and intento < max_intentos - 1:
-                # Si es 429 Resource Exhausted (límite 15 RPM), pausar con tiempo suficiente para reset
-                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                if es_rate_limit:
                     espera = 6 if intento == 0 else 10
                 else:
                     espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 4
@@ -347,6 +464,34 @@ def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
         </details>
     </div>
     """, unsafe_allow_html=True)
+
+    # Opción instantánea de vincular Groq gratis si es 429
+    if error_diag.get("categoria") == "CUOTA_EXCEDIDA" and not get_groq_api_key():
+        with st.expander("🚀 ¿Cómo evitar este límite de 15 peticiones/minuto de forma 100% gratuita?", expanded=True):
+            st.markdown("""
+            **La API de Groq Cloud es completamente gratuita y ofrece 30 peticiones/minuto (el doble) y 14.400 peticiones/día:**
+            1. Consigue tu API Key en 20 segundos en [console.groq.com/keys](https://console.groq.com/keys) *(No requiere tarjeta de crédito ni datos de pago)*.
+            2. Pégala abajo y pulsa **Vincular Groq y Reintentar**:
+            """)
+            col_k1, col_k2 = st.columns([3, 1.5])
+            with col_k1:
+                input_groq = st.text_input(
+                    "Introduce tu GROQ_API_KEY (ej: gsk_...)",
+                    type="password",
+                    key=f"groq_input_{key_prefix}",
+                    help="Tu clave se guardará en tu sesión activa y se usará para failover automático inmediato."
+                )
+            with col_k2:
+                st.write("")
+                st.write("")
+                if st.button("🚀 Vincular y Reintentar", key=f"btn_save_groq_{key_prefix}", type="primary", use_container_width=True):
+                    if input_groq and input_groq.strip():
+                        st.session_state.custom_groq_api_key = input_groq.strip()
+                        st.session_state.motor_ia_preferido = "Groq Cloud (LPU Llama 3.3 70B - 30 RPM Gratuito)"
+                        cb_reintentar_consulta()
+                        st.rerun()
+                    else:
+                        st.warning("Introduce una clave válida.")
 
     # Botones directos de reintento y reinicio en 1 clic mediante callbacks atómicos
     col_reintento, col_reiniciar = st.columns([1.5, 1.5])
@@ -590,6 +735,53 @@ with st.sidebar:
     st.progress(min(1.0, cuota_api["pct_diario"] / 100.0))
     st.caption(f"⚡ **Ritmo:** {cuota_api['rpm_actual']} / {cuota_api['limite_rpm']} req/min | 🪙 **Tokens hoy:** {cuota_api['tokens_hoy']:,} | 💰 **Coste:** 0,00 €")
     
+    # Configuración de Redundancia y Alternativas Gratuitas (Groq / Multi-Key)
+    with st.expander("🛡️ Redundancia & Failover Gratuito (Groq / Clave 2)", expanded=False):
+        st.markdown("**Evita el límite de 15 RPM sin pagar nada:**")
+        motor_opciones = [
+            "⚡ Auto / Híbrido (Gemini con Failover a Groq)",
+            "🚀 Groq Cloud (LPU Llama 3.3 70B - 30 RPM)",
+            "💎 Google Gemini (gemini-3.6-flash)"
+        ]
+        idx_default = 0
+        motor_actual_sesion = st.session_state.get("motor_ia_preferido", "")
+        if "Groq" in motor_actual_sesion and "Auto" not in motor_actual_sesion:
+            idx_default = 1
+        elif "Gemini" in motor_actual_sesion and "Auto" not in motor_actual_sesion:
+            idx_default = 2
+
+        motor_sel = st.selectbox(
+            "Motor preferido:",
+            motor_opciones,
+            index=idx_default,
+            key="sb_motor_ia_select"
+        )
+        st.session_state.motor_ia_preferido = motor_sel
+
+        groq_actual = get_groq_api_key()
+        estado_groq = "🟢 Vinculada" if groq_actual else "⚪ No configurada"
+        st.markdown(f"**Groq LPU (30 RPM):** `{estado_groq}`")
+        if not groq_actual:
+            st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
+            nueva_groq = st.text_input("Vincular GROQ_API_KEY:", type="password", key="sb_groq_key_input")
+            if st.button("Guardar Clave Groq", key="sb_btn_groq", use_container_width=True):
+                if nueva_groq and nueva_groq.strip():
+                    st.session_state.custom_groq_api_key = nueva_groq.strip()
+                    st.success("✅ Clave Groq guardada para esta sesión.")
+                    st.rerun()
+
+        gemini_2_actual = get_secondary_gemini_api_key()
+        estado_gem2 = "🟢 Vinculada" if gemini_2_actual else "⚪ No configurada"
+        st.markdown(f"**Gemini Secundario:** `{estado_gem2}`")
+        if not gemini_2_actual:
+            st.caption("Segunda clave gratis de [Google AI Studio](https://aistudio.google.com/app/apikey).")
+            nueva_gem2 = st.text_input("Vincular GEMINI_API_KEY_2:", type="password", key="sb_gem2_key_input")
+            if st.button("Guardar Gemini 2", key="sb_btn_gem2", use_container_width=True):
+                if nueva_gem2 and nueva_gem2.strip():
+                    st.session_state.custom_gemini_api_key_2 = nueva_gem2.strip()
+                    st.success("✅ Clave secundaria de Gemini guardada.")
+                    st.rerun()
+
     st.divider()
     
     # Cálculo de métricas de votación
@@ -739,6 +931,10 @@ with tab1:
 
     for idx, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"], avatar="🧑‍💻" if msg["role"] == "user" else "🏛️"):
+            if msg.get("es_failover"):
+                st.caption("🚀 *Respuesta servida mediante failover automático a Groq LPU (Llama 3.3 70B)*")
+            elif msg.get("provider") == "groq":
+                st.caption("🚀 *Inferencia Groq Cloud LPU (Llama 3.3 70B)*")
             if msg.get("content"):
                 st.markdown(msg["content"])
             if "error_diag" in msg:
@@ -760,11 +956,19 @@ with tab1:
             
         with st.chat_message("assistant", avatar="🏛️"):
             with st.spinner(f"{nombre_agente} analizando la cuestión y orquestando herramientas..."):
-                if not api_key:
-                    st.error("Configura tu GEMINI_API_KEY en .env o en los Secrets de Streamlit.")
+                # Carga dinámica de credenciales actualizadas (session_state, secrets, .env)
+                api_key_activa = get_gemini_api_key()
+                groq_key_activa = get_groq_api_key()
+                gemini_2_activa = get_secondary_gemini_api_key()
+
+                motor_pref_sel = st.session_state.get("motor_ia_preferido", "Auto")
+                proveedor_pref = "groq" if "Groq" in motor_pref_sel and "Auto" not in motor_pref_sel else "gemini"
+
+                if not api_key_activa and not groq_key_activa:
+                    st.error("Configura tu GEMINI_API_KEY o tu clave gratuita de Groq (GROQ_API_KEY) en el panel lateral.")
                     st.stop()
                     
-                client = genai.Client(api_key=api_key)
+                client = genai.Client(api_key=api_key_activa) if api_key_activa else None
                 
                 # Iniciar Trace de Observabilidad Distribuida
                 trace = TraceContext(trace_name=f"consulta_{nombre_agente.lower().replace(' ', '_')}")
@@ -827,18 +1031,27 @@ MENSAJE DEL CIUDADANO:
                     max_output_tokens=max_tokens,
                     thinking_config=thinking_cfg
                 )
+                modelo_efectivo = "llama-3.3-70b-versatile" if proveedor_pref == "groq" else modelo_activo
                 with trace.span(
-                    f"Inferencia LLM ({modelo_activo})",
+                    f"Inferencia LLM ({'Groq LPU (Llama 3.3 70B)' if proveedor_pref == 'groq' else modelo_activo})",
                     SpanType.LLM,
                     inputs={
-                        "modelo": modelo_activo,
+                        "modelo": modelo_efectivo,
                         "modo": "ejecutivo" if es_ejecutivo else "detallado",
                         "max_tokens": max_tokens,
-                        "prompt_chars": len(prompt_completo)
+                        "prompt_chars": len(prompt_completo),
+                        "proveedor_preferido": proveedor_pref
                     }
                 ) as s_llm:
                     response, error_diag = generar_con_reintento(
-                        client, prompt_completo, model=modelo_activo, config=gen_config
+                        client=client,
+                        contents=prompt_completo,
+                        model=modelo_activo,
+                        config=gen_config,
+                        groq_key=groq_key_activa,
+                        gemini_key_2=gemini_2_activa,
+                        proveedor_preferido=proveedor_pref,
+                        max_tokens=max_tokens
                     )
                     if error_diag:
                         s_llm.finish(
@@ -891,7 +1104,9 @@ MENSAJE DEL CIUDADANO:
                     trace_dict = trace.to_dict()
                     trace_dict["adk_eval"] = eval_adk
                     trace_dict["agente"] = nombre_agente
-                    trace_dict["modelo"] = modelo_activo
+                    trace_dict["modelo"] = getattr(response, "model", modelo_activo)
+                    trace_dict["proveedor"] = getattr(response, "provider", "gemini")
+                    trace_dict["es_failover"] = getattr(response, "es_failover", False)
                     trace_dict["modo_respuesta"] = "⚡ Ejecutivo" if es_ejecutivo else "📑 Detallado"
                     trace_dict["tokens_in"] = tokens_in
                     trace_dict["tokens_out"] = tokens_out
@@ -899,6 +1114,12 @@ MENSAJE DEL CIUDADANO:
                     trace_dict["system_prompt"] = prompt_sistema.strip()
                     trace_dict["timestamp"] = ts_inicio
                     trace_dict["duracion"] = duracion
+
+                    # Aviso informativo si se activó failover automático a Groq
+                    if getattr(response, "es_failover", False):
+                        st.info("🚀 **Failover Automático Activo:** Debido a la saturación transitoria de cuota de Google Gemini (15 RPM), esta consulta se resolvió instantáneamente mediante **Groq LPU (Llama 3.3 70B)** sin interrupciones ni coste.")
+                    elif getattr(response, "provider", "gemini") == "groq":
+                        st.caption("🚀 *Inferencia ejecutada en Groq Cloud LPU (Llama 3.3 70B - 30 RPM / 0,00 €)*")
 
                     st.markdown(response.text)
 
@@ -908,7 +1129,9 @@ MENSAJE DEL CIUDADANO:
                     st.session_state.chat_messages.append({
                         "role": "assistant",
                         "content": response.text,
-                        "trace": trace_dict
+                        "trace": trace_dict,
+                        "es_failover": getattr(response, "es_failover", False),
+                        "provider": getattr(response, "provider", "gemini")
                     })
 
                     # Guardado atómico e inmune a concurrencia

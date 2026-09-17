@@ -101,6 +101,63 @@ class TestAppLogic(unittest.TestCase):
         self.assertIn("00:00 UTC", cuota["proximo_reset_hora"])
         self.assertIn("Free Tier", cuota["coste"])
 
+    def test_secrets_manager_groq_and_secondary(self):
+        """Valida que los getters de Groq y Gemini Secundario existan y funcionen."""
+        from services.secrets_manager import get_groq_api_key, get_secondary_gemini_api_key
+        # En entorno de pruebas sin env vars devuelven None sin lanzar excepción
+        self.assertIsNone(get_groq_api_key())
+        self.assertIsNone(get_secondary_gemini_api_key())
+
+    def test_groq_inference_mock(self):
+        """Valida la inferencia con Groq simulando la API REST de Groq Cloud."""
+        from unittest.mock import patch, MagicMock
+        from app import generar_con_groq
+
+        fake_resp = MagicMock()
+        fake_resp.status_code = 200
+        fake_resp.json.return_value = {
+            "choices": [{"message": {"content": "Respuesta simulada de Llama 3.3 70B en Groq"}}],
+            "usage": {"prompt_tokens": 50, "completion_tokens": 80}
+        }
+
+        with patch("requests.post", return_value=fake_resp):
+            resp, diag = generar_con_groq("Hola", groq_key="gsk_fakekey123")
+            self.assertIsNone(diag)
+            self.assertIsNotNone(resp)
+            self.assertEqual(resp.text, "Respuesta simulada de Llama 3.3 70B en Groq")
+            self.assertEqual(resp.provider, "groq")
+            self.assertEqual(resp.usage_metadata.prompt_token_count, 50)
+            self.assertEqual(resp.usage_metadata.candidates_token_count, 80)
+
+    def test_failover_gemini_to_groq_on_429(self):
+        """Valida que cuando Gemini arroja 429 RESOURCE_EXHAUSTED, se conmuta automáticamente a Groq."""
+        from unittest.mock import patch, MagicMock
+        from app import generar_con_reintento
+
+        # Mock client de Gemini que falla con 429
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = Exception("ClientError: 429 RESOURCE_EXHAUSTED. Quota exceeded.")
+
+        fake_groq_resp = MagicMock()
+        fake_groq_resp.status_code = 200
+        fake_groq_resp.json.return_value = {
+            "choices": [{"message": {"content": "Respuesta generada vía Failover a Groq LPU"}}],
+            "usage": {"prompt_tokens": 40, "completion_tokens": 60}
+        }
+
+        with patch("requests.post", return_value=fake_groq_resp):
+            resp, diag = generar_con_reintento(
+                client=mock_client,
+                contents="Consulta económica",
+                groq_key="gsk_failover_test",
+                max_intentos=1
+            )
+            self.assertIsNone(diag)
+            self.assertIsNotNone(resp)
+            self.assertEqual(resp.text, "Respuesta generada vía Failover a Groq LPU")
+            self.assertEqual(resp.provider, "groq")
+            self.assertTrue(resp.es_failover)
+
 
 if __name__ == "__main__":
     unittest.main()

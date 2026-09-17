@@ -56,34 +56,73 @@ def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]
 
 
 def get_gemini_api_key() -> Optional[str]:
-    """Retorna la API Key de Gemini desde Secret Manager o entorno local."""
+    """Retorna la API Key de Gemini desde Secret Manager, st.secrets, .env o st.session_state."""
+    try:
+        import streamlit as st
+        if hasattr(st, "session_state") and st.session_state.get("custom_gemini_api_key"):
+            return st.session_state.custom_gemini_api_key
+    except Exception:
+        pass
     return get_secret("GEMINI_API_KEY")
 
 
+def get_secondary_gemini_api_key() -> Optional[str]:
+    """Retorna una segunda clave de Gemini para failover automático si la primera agota el rate limit de 15 RPM."""
+    try:
+        import streamlit as st
+        if hasattr(st, "session_state") and st.session_state.get("custom_gemini_api_key_2"):
+            return st.session_state.custom_gemini_api_key_2
+    except Exception:
+        pass
+    return get_secret("GEMINI_API_KEY_2")
+
+
+def get_groq_api_key() -> Optional[str]:
+    """Retorna la API Key de Groq (100% gratuita, 30 RPM) para failover automático o motor primario."""
+    try:
+        import streamlit as st
+        if hasattr(st, "session_state") and st.session_state.get("custom_groq_api_key"):
+            return st.session_state.custom_groq_api_key
+    except Exception:
+        pass
+    return get_secret("GROQ_API_KEY")
+
+
 def get_secrets_backend_info() -> Dict[str, str]:
-    """Retorna información sobre el origen de las credenciales activas."""
+    """Retorna información sobre el origen de las credenciales activas y estado de redundancia."""
     api_key = get_gemini_api_key()
-    if not api_key:
+    groq_key = get_groq_api_key()
+    gemini_2_key = get_secondary_gemini_api_key()
+
+    redundancia_txt = []
+    if groq_key:
+        redundancia_txt.append("🚀 Groq LPU (Activo)")
+    if gemini_2_key:
+        redundancia_txt.append("⚡ Gemini Secundario (Activo)")
+
+    if not api_key and not groq_key:
         return {
             "estado": "no_configurada",
             "origen": "Ninguno",
             "icono": "⚠️",
-            "mensaje": "Clave GEMINI_API_KEY no detectada."
+            "mensaje": "Sin claves de inferencia configuradas.",
+            "redundancia": "Desactivada"
         }
 
-    # Determinar procedencia
+    origen = ".env / Entorno Local"
+    icono = "📄"
     if PROJECT_ID and secret_in_gcp("GEMINI_API_KEY"):
-        return {
-            "estado": "activa",
-            "origen": "Google Secret Manager",
-            "icono": "🔐",
-            "mensaje": f"Gestionada en la nube (Proyecto GCP: {PROJECT_ID})"
-        }
+        origen = "Google Secret Manager"
+        icono = "🔐"
+
     return {
         "estado": "activa",
-        "origen": ".env / Entorno Local",
-        "icono": "📄",
-        "mensaje": "Cargada desde configuración local"
+        "origen": origen,
+        "icono": icono,
+        "mensaje": "Cargada desde configuración activa",
+        "redundancia": " + ".join(redundancia_txt) if redundancia_txt else "Ninguna (Solo Gemini Primario)",
+        "tiene_groq": bool(groq_key),
+        "tiene_gemini_2": bool(gemini_2_key)
     }
 
 
