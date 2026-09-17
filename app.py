@@ -32,6 +32,7 @@ from services.secrets_manager import get_gemini_api_key, get_secrets_backend_inf
 api_key = get_gemini_api_key()
 
 from google import genai
+from google.genai import types
 from primer_ministro.agent import INSTRUCCION_PRIME_MINISTER
 from ministros.economia import (
     INSTRUCCION_ECONOMIA,
@@ -145,9 +146,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
-def generar_con_reintento(client, contents, model="gemini-2.5-flash", max_intentos=4):
+def generar_con_reintento(client, contents, model="gemini-2.5-flash", config=None, max_intentos=4):
     """
-    Invoca a Google Gemini con política de reintentos exponenciales y degradación elegante.
+    Invoca a Google Gemini con política de reintentos exponenciales, control de tokens y degradación elegante.
     Retorna (response, None) en caso de éxito, o (None, error_diag) si se agotan los reintentos
     o se detectan bloqueos de seguridad / cuotas, impidiendo que Streamlit falle con pantalla roja.
     """
@@ -156,7 +157,10 @@ def generar_con_reintento(client, contents, model="gemini-2.5-flash", max_intent
 
     for intento in range(max_intentos):
         try:
-            response = client.models.generate_content(model=model, contents=contents)
+            if config is not None:
+                response = client.models.generate_content(model=model, contents=contents, config=config)
+            else:
+                response = client.models.generate_content(model=model, contents=contents)
 
             # Verificar si fue bloqueado por filtros de moderación en candidates
             if hasattr(response, "candidates") and response.candidates:
@@ -325,11 +329,13 @@ def render_observability_panel(trace_data: Dict[str, Any], key_prefix: str = "tr
             tokens_out = summary.get("tokens_out", trace_data.get("tokens_out", 0))
             st.metric("⚡ Tokens In/Out", f"{tokens_in} / {tokens_out}")
 
+    modo_badge = trace_data.get("modo_respuesta", "⚡ Ejecutivo")
     st.markdown(f"""
     <div style='margin-top: 8px; margin-bottom: 12px;'>
         <span class='trace-pill pill-green'>🛡️ Seguridad: {eval_adk.get('seguridad', 'PASSED')}</span>
         <span class='trace-pill pill-blue'>📊 Spans: {len(spans) if spans else 1} fases</span>
-        <span class='trace-pill pill-amber'>💰 Coste: 0,00 € (Free Tier)</span>
+        <span class='trace-pill pill-amber'>🎛️ {modo_badge}</span>
+        <span class='trace-pill pill-blue'>💰 Coste: 0,00 € (Free Tier)</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -468,7 +474,7 @@ with tab1:
     st.subheader("💬 Consulta y Preguntas Libres al Gabinete")
     st.markdown("Pregunta cualquier cuestión a los miembros del gobierno y consulta la **trazabilidad y servicios de evaluación del Google ADK**.")
     
-    col_ag1, col_ag2 = st.columns([3, 1])
+    col_ag1, col_mode, col_ag2 = st.columns([2.5, 2.5, 1])
     with col_ag1:
         interlocutor = st.selectbox(
             "¿A quién deseas preguntar?",
@@ -480,10 +486,23 @@ with tab1:
                 "👥 Gabinete Completo (Mesa Redonda Interministerial)"
             ]
         )
+    with col_mode:
+        modo_respuesta = st.radio(
+            "Profundidad y Consumo de Tokens:",
+            [
+                "⚡ Ejecutivo (Conciso - Ahorro Tokens)",
+                "📑 Detallado (Informe Exhaustivo)"
+            ],
+            horizontal=True,
+            help="⚡ Modo Ejecutivo: Síntesis en 3-4 viñetas clave (Ahorra ~70% de tokens y responde en 1-2s). 📑 Modo Detallado: Desglose analítico completo con todas las métricas."
+        )
     with col_ag2:
-        if st.button("🗑️ Limpiar Chat Pantalla", use_container_width=True):
+        if st.button("🗑️ Limpiar", use_container_width=True):
             st.session_state.chat_messages = []
             st.rerun()
+
+    es_ejecutivo = "Ejecutivo" in modo_respuesta
+    max_tokens = 600 if es_ejecutivo else 2048
 
     prompts_map = {
         "👑 Primer Ministro (Visión Global y Coordinación)": ("Primer Ministro", INSTRUCCION_PRIME_MINISTER),
@@ -532,14 +551,26 @@ with tab1:
                 if texto_grounding:
                     bloque_evidencia = f"\n\nDATOS OFICIALES EN TIEMPO REAL OBTENIDOS POR LAS HERRAMIENTAS (GROUNDING):\n{texto_grounding}\nUsa estos datos oficiales para fundamentar tu respuesta técnica con máxima precisión."
                 
+                directriz_modo = """
+DIRECTRIZ DE PROFUNDIDAD Y CONCISIÓN (MODO EJECUTIVO ACTIVADO - AHORRO DE TOKENS):
+- Responde de forma telegráfica, directa y sintética orientada a la toma de decisión inmediata.
+- Extensión máxima estricta: Máximo 150 a 200 palabras o 3-4 viñetas clave con las conclusiones e impactos fundamentales.
+- Prohibidos preámbulos formales, saludos ceremoniales o divagaciones teóricas. Ve directo a las métricas y la resolución.
+""" if es_ejecutivo else """
+DIRECTRIZ DE PROFUNDIDAD Y CONCISIÓN (MODO DETALLADO ACTIVADO):
+- Elabora un dictamen técnico y normativo completo, detallando el impacto presupuestario, metodologías, evidencias empíricas de las herramientas y posibles contraindicaciones.
+"""
+
                 prompt_completo = f"""
 {prompt_sistema}{bloque_evidencia}
+
+{directriz_modo}
 
 REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
 - Si el mensaje del ciudadano es un saludo, una pregunta de cortesía o una duda sencilla sobre tus funciones (ej: "Hola", "Buenos días", "¿Para qué sirves?", "¿Quién eres?", "¿Qué haces?", "Gracias"):
   Responde de forma amable, cercana y muy breve (máximo 1 o 2 frases simples) explicando quién eres y ofreciéndote a ayudar. NO generes informes largos ni tecnicismos.
 - Si el mensaje es una propuesta, ley, dilema o consulta técnica/política real:
-  Responde con la profundidad y el rigor correspondiente a tu cargo.
+  Responde con la profundidad y el rigor correspondiente a tu cargo y al modo seleccionado.
 
 MENSAJE DEL CIUDADANO:
 {pregunta_usuario}
@@ -548,21 +579,36 @@ MENSAJE DEL CIUDADANO:
                 t0 = time.perf_counter()
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
                 fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                
-                # 2. Span de Inferencia LLM
+
+                # 2. Span de Inferencia LLM con Presupuesto de Tokens
                 response, error_diag = None, None
-                with trace.span(f"Inferencia LLM ({modelo_activo})", SpanType.LLM, inputs={"modelo": modelo_activo, "prompt_chars": len(prompt_completo)}) as s_llm:
-                    response, error_diag = generar_con_reintento(client, prompt_completo, model=modelo_activo)
+                gen_config = types.GenerateContentConfig(max_output_tokens=max_tokens)
+                with trace.span(
+                    f"Inferencia LLM ({modelo_activo})",
+                    SpanType.LLM,
+                    inputs={
+                        "modelo": modelo_activo,
+                        "modo": "ejecutivo" if es_ejecutivo else "detallado",
+                        "max_tokens": max_tokens,
+                        "prompt_chars": len(prompt_completo)
+                    }
+                ) as s_llm:
+                    response, error_diag = generar_con_reintento(
+                        client, prompt_completo, model=modelo_activo, config=gen_config
+                    )
                     if error_diag:
                         s_llm.finish(
                             status=SpanStatus.ERROR,
                             error=Exception(error_diag["codigo_tecnico"]),
-                            metadata={"error_diag": error_diag}
+                            metadata={"error_diag": error_diag, "modo": "ejecutivo" if es_ejecutivo else "detallado"}
                         )
                     else:
                         tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
                         tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
-                        s_llm.finish(outputs={"tokens_in": tokens_in, "tokens_out": tokens_out}, metadata={"tokens_in": tokens_in, "tokens_out": tokens_out})
+                        s_llm.finish(
+                            outputs={"tokens_in": tokens_in, "tokens_out": tokens_out},
+                            metadata={"tokens_in": tokens_in, "tokens_out": tokens_out, "modo": "ejecutivo" if es_ejecutivo else "detallado"}
+                        )
 
                 duracion = time.perf_counter() - t0
 
@@ -571,6 +617,7 @@ MENSAJE DEL CIUDADANO:
                     trace_dict = trace.to_dict()
                     trace_dict["agente"] = nombre_agente
                     trace_dict["modelo"] = modelo_activo
+                    trace_dict["modo_respuesta"] = "⚡ Ejecutivo" if es_ejecutivo else "📑 Detallado"
                     trace_dict["timestamp"] = ts_inicio
                     trace_dict["duracion"] = duracion
                     trace_dict["error"] = error_diag
@@ -599,6 +646,7 @@ MENSAJE DEL CIUDADANO:
                     trace_dict["adk_eval"] = eval_adk
                     trace_dict["agente"] = nombre_agente
                     trace_dict["modelo"] = modelo_activo
+                    trace_dict["modo_respuesta"] = "⚡ Ejecutivo" if es_ejecutivo else "📑 Detallado"
                     trace_dict["tokens_in"] = tokens_in
                     trace_dict["tokens_out"] = tokens_out
                     trace_dict["tokens_total"] = tokens_in + tokens_out
