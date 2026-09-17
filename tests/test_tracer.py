@@ -74,6 +74,44 @@ class TestTracer(unittest.TestCase):
         self.assertEqual(summary["total_tokens"], 205)
         self.assertEqual(summary["llm_calls_count"], 1)
 
+    def test_diagnosticar_error_rate_limit(self):
+        """Valida la clasificación causal para cuotas y rate limits 429."""
+        from services.tracer import diagnosticar_error_gemini
+        exc = Exception("429 RESOURCE_EXHAUSTED: Quota exceeded for metric 'GenerateContent'")
+        diag = diagnosticar_error_gemini(exc)
+        self.assertEqual(diag["categoria"], "CUOTA_EXCEDIDA")
+        self.assertEqual(diag["codigo_tecnico"], "HTTP 429 - RESOURCE_EXHAUSTED")
+        self.assertTrue(diag["es_transitorio"])
+        self.assertIn("15 peticiones", diag["explicacion"])
+
+    def test_diagnosticar_error_server_overload(self):
+        """Valida la clasificación causal para sobrecarga de servidores Google 503."""
+        from services.tracer import diagnosticar_error_gemini
+        exc = Exception("google.genai.errors.ServerError: 503 The service is temporarily unavailable")
+        diag = diagnosticar_error_gemini(exc)
+        self.assertEqual(diag["categoria"], "SOBRECARGA_SERVIDOR")
+        self.assertIn("HTTP 503", diag["codigo_tecnico"])
+        self.assertTrue(diag["es_transitorio"])
+        self.assertIn("Google", diag["explicacion"])
+
+    def test_diagnosticar_error_safety(self):
+        """Valida la detección de filtros éticos y de seguridad (Safety Blocks)."""
+        from services.tracer import diagnosticar_error_gemini
+        exc = Exception("ValueError: The candidate's finish_reason is SAFETY")
+        diag = diagnosticar_error_gemini(exc)
+        self.assertEqual(diag["categoria"], "FILTRO_SEGURIDAD")
+        self.assertEqual(diag["codigo_tecnico"], "FinishReason: SAFETY_BLOCK")
+        self.assertFalse(diag["es_transitorio"])
+
+    def test_diagnosticar_error_timeout(self):
+        """Valida la detección de caídas o timeouts de red."""
+        from services.tracer import diagnosticar_error_gemini
+        exc = ConnectionError("Failed to establish connection: timed out")
+        diag = diagnosticar_error_gemini(exc)
+        self.assertEqual(diag["categoria"], "TIMEOUT_CONEXION")
+        self.assertEqual(diag["codigo_tecnico"], "NETWORK_TIMEOUT")
+        self.assertTrue(diag["es_transitorio"])
+
 
 if __name__ == "__main__":
     unittest.main()

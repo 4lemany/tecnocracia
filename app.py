@@ -53,7 +53,7 @@ from ministros.interior import (
 )
 
 # Motor de Observabilidad y Trazabilidad de Agentes (LLM Tracing & Spans)
-from services.tracer import TraceContext, SpanType, SpanStatus
+from services.tracer import TraceContext, SpanType, SpanStatus, diagnosticar_error_gemini
 
 # Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
 from services.storage import (
@@ -144,24 +144,91 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Función de llamada a Gemini con manejo robusto de reintentos
-def generar_con_reintento(client, contents, model="gemini-3.6-flash", max_intentos=4):
+# Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
+def generar_con_reintento(client, contents, model="gemini-2.5-flash", max_intentos=4):
+    """
+    Invoca a Google Gemini con política de reintentos exponenciales y degradación elegante.
+    Retorna (response, None) en caso de éxito, o (None, error_diag) si se agotan los reintentos
+    o se detectan bloqueos de seguridad / cuotas, impidiendo que Streamlit falle con pantalla roja.
+    """
+    ultimo_error = None
+    backoff_tiempos = [2, 4, 7, 10]
+
     for intento in range(max_intentos):
         try:
-            return client.models.generate_content(model=model, contents=contents)
+            response = client.models.generate_content(model=model, contents=contents)
+
+            # Verificar si fue bloqueado por filtros de moderación en candidates
+            if hasattr(response, "candidates") and response.candidates:
+                cand = response.candidates[0]
+                finish_reason = getattr(cand, "finish_reason", None)
+                finish_str = str(finish_reason).upper() if finish_reason else ""
+                if any(k in finish_str for k in ["SAFETY", "BLOCK", "RECITATION"]):
+                    diag = diagnosticar_error_gemini(Exception(f"SAFETY_FILTER_TRIGGERED: {finish_str}"))
+                    return None, diag
+
+            # Verificar acceso a texto sin generar excepción
+            try:
+                _ = response.text
+            except Exception as e_text:
+                diag = diagnosticar_error_gemini(e_text)
+                return None, diag
+
+            return response, None
+
         except Exception as e:
+            ultimo_error = e
             err_msg = str(e)
-            if any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded"]):
-                if intento < max_intentos - 1:
-                    espera = 4 * (intento + 1)
-                    st.toast(f"⏳ El servidor de Gemini está respondiendo lento. Reintentando ({intento+1}/{max_intentos})...", icon="⏳")
-                    time.sleep(espera)
-                    continue
-            if intento < max_intentos - 1:
-                time.sleep(3)
+            es_transitorio = any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE"])
+
+            if es_transitorio and intento < max_intentos - 1:
+                espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 8
+                st.toast(f"⏳ El servidor de Gemini está saturado. Reintento automático en {espera}s ({intento+1}/{max_intentos})...", icon="⏳")
+                time.sleep(espera)
                 continue
-            st.error("⚠️ El servidor de Gemini tuvo un fallo temporal de conexión. Por favor, vuelve a enviar tu pregunta.")
-            raise e
+            elif intento < max_intentos - 1 and "SAFETY" not in err_msg and "API_KEY" not in err_msg:
+                time.sleep(2)
+                continue
+            else:
+                break
+
+    # Diagnóstico causal y explicabilidad sin elevar excepción al motor de Streamlit
+    diag = diagnosticar_error_gemini(ultimo_error if ultimo_error else Exception("Error no identificado en la llamada"))
+    return None, diag
+
+
+def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
+    """
+    Renderiza una tarjeta visual premium de explicabilidad cuando ocurre una incidencia
+    en la infraestructura de Google GenAI (429 Rate Limits, 503 Overload, Safety Blocks, etc.).
+    """
+    icono = error_diag.get("icono", "⚠️")
+    titulo = error_diag.get("titulo", "Incidencia en el Servicio de Inferencia")
+    codigo = error_diag.get("codigo_tecnico", "ERROR")
+    color = error_diag.get("color_badge", "#ef4444")
+    explicacion = error_diag.get("explicacion", "Se ha producido un error temporal de conexión.")
+    recomendacion = error_diag.get("accion_recomendada", "Vuelve a intentarlo en unos instantes.")
+    detalle = error_diag.get("detalle_tecnico", "")
+
+    st.markdown(f"""
+    <div style='background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 5px solid {color}; border-radius: 10px; padding: 16px; margin: 12px 0;'>
+        <div style='display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px;'>
+            <span style='font-size: 1.05em; font-weight: 700; color: #f8fafc;'>{icono} {titulo}</span>
+            <span style='background: rgba(255, 255, 255, 0.08); color: {color}; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; font-weight: bold; border: 1px solid {color}44;'>{codigo}</span>
+        </div>
+        <div style='color: #cbd5e1; font-size: 0.9em; margin-bottom: 10px; line-height: 1.5;'>
+            <strong style='color: #e2e8f0;'>¿Por qué ha ocurrido esto?</strong><br>
+            {explicacion}
+        </div>
+        <div style='background: rgba(15, 23, 42, 0.6); padding: 10px 12px; border-radius: 6px; font-size: 0.85em; color: #94a3b8; margin-bottom: 8px; border: 1px solid rgba(255, 255, 255, 0.05);'>
+            💡 <strong>Acción Recomendada:</strong> {recomendacion}
+        </div>
+        <details style='font-size: 0.78em; color: #64748b; margin-top: 6px; cursor: pointer;'>
+            <summary>Ver detalle técnico de la excepción</summary>
+            <pre style='margin-top: 6px; padding: 8px; background: #0f172a; border-radius: 4px; color: #fca5a5; overflow-x: auto; white-space: pre-wrap;'>{detalle}</pre>
+        </details>
+    </div>
+    """, unsafe_allow_html=True)
 
 def resolver_grounding_tools(interlocutor: str, pregunta: str, trace: TraceContext) -> tuple[str, list[str]]:
     """Ejecuta y traza las herramientas oficiales de los ministros según el contexto."""
@@ -428,12 +495,15 @@ with tab1:
     
     nombre_agente, prompt_sistema = prompts_map[interlocutor]
 
-    for msg in st.session_state.chat_messages:
+    for idx, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"], avatar="🧑‍💻" if msg["role"] == "user" else "🏛️"):
-            st.markdown(msg["content"])
+            if msg.get("content"):
+                st.markdown(msg["content"])
+            if "error_diag" in msg:
+                render_error_diagnosis_card(msg["error_diag"], key_prefix=f"hist_err_{idx}")
             if "trace" in msg:
                 with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=False):
-                    render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', id(msg))}")
+                    render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', idx)}")
 
     pregunta_usuario = st.chat_input("Escribe tu pregunta para el gobierno...")
     
@@ -480,53 +550,83 @@ MENSAJE DEL CIUDADANO:
                 fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 
                 # 2. Span de Inferencia LLM
+                response, error_diag = None, None
                 with trace.span(f"Inferencia LLM ({modelo_activo})", SpanType.LLM, inputs={"modelo": modelo_activo, "prompt_chars": len(prompt_completo)}) as s_llm:
-                    response = generar_con_reintento(client, prompt_completo, model=modelo_activo)
-                    tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
-                    tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
-                    s_llm.finish(outputs={"tokens_in": tokens_in, "tokens_out": tokens_out}, metadata={"tokens_in": tokens_in, "tokens_out": tokens_out})
-                    
+                    response, error_diag = generar_con_reintento(client, prompt_completo, model=modelo_activo)
+                    if error_diag:
+                        s_llm.finish(
+                            status=SpanStatus.ERROR,
+                            error=Exception(error_diag["codigo_tecnico"]),
+                            metadata={"error_diag": error_diag}
+                        )
+                    else:
+                        tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
+                        tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
+                        s_llm.finish(outputs={"tokens_in": tokens_in, "tokens_out": tokens_out}, metadata={"tokens_in": tokens_in, "tokens_out": tokens_out})
+
                 duracion = time.perf_counter() - t0
-                
-                # 3. Span de Evaluación Google ADK
-                with trace.span("Evaluación de Calidad Google ADK", SpanType.EVAL, inputs={"agente": nombre_agente}) as s_eval:
-                    eval_adk = evaluar_respuesta_adk(nombre_agente, pregunta_usuario, response.text, duracion, tokens_in, tokens_out)
-                    s_eval.finish(outputs=eval_adk)
-                
-                # Finalizar traza completa
-                trace.finish()
-                trace_dict = trace.to_dict()
-                trace_dict["adk_eval"] = eval_adk
-                trace_dict["agente"] = nombre_agente
-                trace_dict["modelo"] = modelo_activo
-                trace_dict["tokens_in"] = tokens_in
-                trace_dict["tokens_out"] = tokens_out
-                trace_dict["tokens_total"] = tokens_in + tokens_out
-                trace_dict["system_prompt"] = prompt_sistema.strip()
-                trace_dict["timestamp"] = ts_inicio
-                trace_dict["duracion"] = duracion
-                
-                st.markdown(response.text)
-                
-                with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=True):
-                    render_observability_panel(trace_dict, key_prefix="chat_current")
-                
-                st.session_state.chat_messages.append({
-                    "role": "assistant",
-                    "content": response.text,
-                    "trace": trace_dict
-                })
-                
-                # Guardado atómico e inmune a concurrencia
-                nueva_conv = {
-                    "tipo": "💬 Consulta Directa",
-                    "agente": nombre_agente,
-                    "pregunta": pregunta_usuario,
-                    "respuesta": response.text,
-                    "fecha": fecha_completa,
-                    "telemetria": trace_dict
-                }
-                agregar_conversacion_al_historial(nueva_conv)
+
+                if error_diag:
+                    trace.finish()
+                    trace_dict = trace.to_dict()
+                    trace_dict["agente"] = nombre_agente
+                    trace_dict["modelo"] = modelo_activo
+                    trace_dict["timestamp"] = ts_inicio
+                    trace_dict["duracion"] = duracion
+                    trace_dict["error"] = error_diag
+
+                    # Tarjeta de Explicabilidad DevOps y Diagnóstico Causal
+                    render_error_diagnosis_card(error_diag, key_prefix="live_err")
+
+                    with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=True):
+                        render_observability_panel(trace_dict, key_prefix="chat_current_err")
+
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": "",
+                        "error_diag": error_diag,
+                        "trace": trace_dict
+                    })
+                else:
+                    # 3. Span de Evaluación Google ADK
+                    with trace.span("Evaluación de Calidad Google ADK", SpanType.EVAL, inputs={"agente": nombre_agente}) as s_eval:
+                        eval_adk = evaluar_respuesta_adk(nombre_agente, pregunta_usuario, response.text, duracion, tokens_in, tokens_out)
+                        s_eval.finish(outputs=eval_adk)
+
+                    # Finalizar traza completa
+                    trace.finish()
+                    trace_dict = trace.to_dict()
+                    trace_dict["adk_eval"] = eval_adk
+                    trace_dict["agente"] = nombre_agente
+                    trace_dict["modelo"] = modelo_activo
+                    trace_dict["tokens_in"] = tokens_in
+                    trace_dict["tokens_out"] = tokens_out
+                    trace_dict["tokens_total"] = tokens_in + tokens_out
+                    trace_dict["system_prompt"] = prompt_sistema.strip()
+                    trace_dict["timestamp"] = ts_inicio
+                    trace_dict["duracion"] = duracion
+
+                    st.markdown(response.text)
+
+                    with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=True):
+                        render_observability_panel(trace_dict, key_prefix="chat_current")
+
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": response.text,
+                        "trace": trace_dict
+                    })
+
+                    # Guardado atómico e inmune a concurrencia
+                    nueva_conv = {
+                        "tipo": "💬 Consulta Directa",
+                        "agente": nombre_agente,
+                        "pregunta": pregunta_usuario,
+                        "respuesta": response.text,
+                        "fecha": fecha_completa,
+                        "telemetria": trace_dict
+                    }
+                    agregar_conversacion_al_historial(nueva_conv)
 
 # -------------------------------------------------------------
 # TAB 2: HISTORIAL DE CONVERSACIONES REAL

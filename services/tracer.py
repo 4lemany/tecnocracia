@@ -13,6 +13,119 @@ from datetime import datetime
 from contextlib import contextmanager
 
 
+def diagnosticar_error_gemini(e: Exception) -> Dict[str, Any]:
+    """
+    Analiza y diagnostica excepciones ocurridas durante la llamada al SDK de Gemini
+    (google.genai.errors.ServerError, ClientError, 429, 500, 503, cuotas, safety, etc.)
+    ofreciendo una explicación causal (Explainable AI / DevOps Root Cause) y recomendaciones prácticas.
+    """
+    err_str = str(e)
+    err_type = type(e).__name__
+
+    # 1. Límite de cuota / Rate limit (429 / RESOURCE_EXHAUSTED)
+    if any(k in err_str for k in ["429", "RESOURCE_EXHAUSTED", "quota", "QuotaExceeded", "rate limit", "RateLimit"]):
+        return {
+            "categoria": "CUOTA_EXCEDIDA",
+            "titulo": "Límite de Peticiones por Minuto Alcanzado (Rate Limit)",
+            "codigo_tecnico": "HTTP 429 - RESOURCE_EXHAUSTED",
+            "explicacion": (
+                "La API de Google Gemini en su nivel gratuito (Free Tier) impone un límite estricto de "
+                "15 peticiones por minuto (RPM) y 1.500 peticiones diarias. Al interactuar de forma sucesiva "
+                "o al orquestar varios agentes y herramientas en poco tiempo, se superó transitoriamente esta tasa."
+            ),
+            "accion_recomendada": "Pausa 15-20 segundos antes de enviar una nueva consulta para que la ventana de cuota se restablezca.",
+            "es_transitorio": True,
+            "icono": "🚦",
+            "color_badge": "#f59e0b",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 2. Sobrecarga temporal de servidores de Google Cloud (500 / 503 / 504 / ServerError)
+    if any(k in err_str for k in ["ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE", "InternalServerError"]):
+        return {
+            "categoria": "SOBRECARGA_SERVIDOR",
+            "titulo": "Servidores de Google Cloud Temporalmente Saturados",
+            "codigo_tecnico": "HTTP 503 / ServerError - Transient Overload",
+            "explicacion": (
+                "El clúster de cómputo de Google que procesa el modelo Gemini está experimentando picos de alta demanda "
+                "o rebalanceo de infraestructura en la región. No es un error en tu código ni en tu pregunta; "
+                "los servidores de inferencia rechazaron transitoriamente la conexión."
+            ),
+            "accion_recomendada": "Pulsa 'Reintentar Consulta'. Suele resolverse automáticamente en pocos segundos una vez Google equilibra la carga.",
+            "es_transitorio": True,
+            "icono": "☁️",
+            "color_badge": "#ef4444",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 3. Moderación y Filtro de Seguridad Ético (Safety Block)
+    if any(k in err_str for k in ["SAFETY", "blocked", "finish_reason", "HarmCategory", "BlockedPromptException", "Recitation"]):
+        return {
+            "categoria": "FILTRO_SEGURIDAD",
+            "titulo": "Moderación de Seguridad y Directrices Éticas Activada",
+            "codigo_tecnico": "FinishReason: SAFETY_BLOCK",
+            "explicacion": (
+                "Los filtros de seguridad y alineamiento de Google Gemini clasificaron los términos de la consulta o "
+                "la respuesta generada bajo una categoría sensible (como integridad cívica, polarización política extrema "
+                "o contenidos regulados)."
+            ),
+            "accion_recomendada": "Reformula la pregunta evitando términos polémicos directos y planteándola desde una perspectiva de análisis técnico e institucional.",
+            "es_transitorio": False,
+            "icono": "🛡️",
+            "color_badge": "#ec4899",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 4. Fallo de Autenticación o Clave Inválida (401 / 403 / API_KEY_INVALID)
+    if any(k in err_str for k in ["API_KEY_INVALID", "401", "403", "PERMISSION_DENIED", "unauthorized"]):
+        return {
+            "categoria": "AUTENTICACION_INVALIDA",
+            "titulo": "Clave de API de Gemini Inválida o Sin Permisos",
+            "codigo_tecnico": "HTTP 401/403 - PERMISSION_DENIED",
+            "explicacion": (
+                "La clave de API proporcionada no es válida, ha caducado o no tiene habilitado el acceso "
+                "a los modelos de Gemini en Google AI Studio o Google Cloud Vertex."
+            ),
+            "accion_recomendada": "Comprueba tu clave GEMINI_API_KEY en los Secrets de Streamlit o en el archivo .env local.",
+            "es_transitorio": False,
+            "icono": "🔑",
+            "color_badge": "#dc2626",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 5. Fallo de Conexión de Red o Timeout
+    if any(k in err_str for k in ["Timeout", "timed out", "ConnectionError", "Network", "Failed to establish"]):
+        return {
+            "categoria": "TIMEOUT_CONEXION",
+            "titulo": "Fallo de Conexión de Red o Tiempo de Espera Agotado",
+            "codigo_tecnico": "NETWORK_TIMEOUT",
+            "explicacion": (
+                "Se agotó el tiempo de espera al conectar con el endpoint remoto de Google Gemini. "
+                "Puede deberse a latencia elevada en la red o corte temporal de salida a internet."
+            ),
+            "accion_recomendada": "Comprueba la conexión de red e inténtalo de nuevo en unos momentos.",
+            "es_transitorio": True,
+            "icono": "🔌",
+            "color_badge": "#f97316",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
+    # 6. Incidencia Genérica
+    return {
+        "categoria": "ERROR_GENERICO",
+        "titulo": "Incidencia Inesperada en la Inferencia de IA",
+        "codigo_tecnico": f"EXCEPTION_{err_type}",
+        "explicacion": (
+            "Se ha producido una excepción imprevista durante el ciclo de procesamiento de la respuesta con Google GenAI."
+        ),
+        "accion_recomendada": "Revisa los detalles técnicos en la traza de observabilidad o prueba a reformular la consulta.",
+        "es_transitorio": True,
+        "icono": "⚠️",
+        "color_badge": "#64748b",
+        "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+    }
+
+
 class SpanType:
     AGENT = "agent"
     TOOL = "tool"
