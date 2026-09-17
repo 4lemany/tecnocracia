@@ -23,6 +23,7 @@ from .tracer import (
     Span,
     SpanType,
     SpanStatus,
+    diagnosticar_error_gemini,
 )
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "Span",
     "SpanType",
     "SpanStatus",
+    "diagnosticar_error_gemini",
 ]

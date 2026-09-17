@@ -54,7 +54,13 @@ from ministros.interior import (
 )
 
 # Motor de Observabilidad y Trazabilidad de Agentes (LLM Tracing & Spans)
-from services.tracer import TraceContext, SpanType, SpanStatus, diagnosticar_error_gemini
+try:
+    from services.tracer import TraceContext, SpanType, SpanStatus, diagnosticar_error_gemini
+except ImportError:
+    import importlib
+    if "services.tracer" in sys.modules:
+        importlib.reload(sys.modules["services.tracer"])
+    from services.tracer import TraceContext, SpanType, SpanStatus, diagnosticar_error_gemini
 
 # Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
 from services.storage import (
