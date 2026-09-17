@@ -1,32 +1,18 @@
-# Git
-.git
-.gitignore
-
-# Python y entornos virtuales
-__pycache__/
-*.py[cod]
-*$py.class
 .venv/
-venv/
-env/
-.pytest_cache/
-
-# Entorno y secretos
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
 .env
 .env.*
-*.secret
-
-# IDEs y configuración local
 .vscode/
 .devcontainer/
 .adk/
-
-# Notebooks interactivos pesados
-*.ipynb
-primer_ministro/test_prime_minister.ipynb
-primer_ministro/eval_sets/
-
-# Pruebas y CI
 tests/
-.coverage
-htmlcov/
+.pytest_cache/
+*.ipynb
+README.md
+*.sh
+*.ps1

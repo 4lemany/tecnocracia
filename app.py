@@ -26,13 +26,9 @@ try:
 except ImportError:
     pass
 
-# Cargar API Key (Soporta tanto .env local como st.secrets en Streamlit Cloud)
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    try:
-        api_key = st.secrets.get("GEMINI_API_KEY")
-    except Exception:
-        api_key = None
+# Cargar API Key (Soporta Google Secret Manager, .env local y st.secrets)
+from secrets_manager import get_gemini_api_key, get_secrets_backend_info
+api_key = get_gemini_api_key()
 
 from google import genai
 from primer_ministro.agent import INSTRUCCION_PRIME_MINISTER
@@ -40,90 +36,16 @@ from ministros.economia import INSTRUCCION_ECONOMIA
 from ministros.educacion import INSTRUCCION_EDUCACION
 from ministros.interior import INSTRUCCION_INTERIOR
 
-# Gestión atómica y concurrente de datos de la comunidad
-RUTA_COMUNIDAD = Path("datos_comunidad.json")
-FILE_LOCK = threading.Lock()
+# Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
+from storage import (
+    cargar_datos_comunidad,
+    agregar_conversacion_al_historial,
+    registrar_voto,
+    agregar_opinion,
+    vaciar_historial_conversaciones,
+    get_storage_backend_info
+)
 
-def cargar_datos_comunidad():
-    """Lee siempre la versión más reciente del disco de forma segura."""
-    with FILE_LOCK:
-        datos_default = {
-            "votos": {"positivos": 0, "negativos": 0},
-            "opiniones": [],
-            "historial_conversaciones": []
-        }
-        if not RUTA_COMUNIDAD.exists():
-            try:
-                with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-                    json.dump(datos_default, f, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-            return datos_default
-        try:
-            with open(RUTA_COMUNIDAD, "r", encoding="utf-8") as f:
-                datos = json.load(f)
-                if "votos" not in datos:
-                    datos["votos"] = {"positivos": 0, "negativos": 0}
-                if "opiniones" not in datos:
-                    datos["opiniones"] = []
-                if "historial_conversaciones" not in datos:
-                    datos["historial_conversaciones"] = []
-                return datos
-        except Exception:
-            return datos_default
-
-def agregar_conversacion_al_historial(nueva_conv):
-    """Añade la conversación a la lista fresca en disco para evitar perder datos por concurrencia."""
-    with FILE_LOCK:
-        datos = cargar_datos_comunidad()
-        datos.setdefault("historial_conversaciones", []).append(nueva_conv)
-        try:
-            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-                json.dump(datos, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            st.error(f"Error guardando en historial: {e}")
-        st.session_state.datos_comunidad = datos
-
-def registrar_voto(es_positivo):
-    """Registra el voto refrescando el disco."""
-    with FILE_LOCK:
-        datos = cargar_datos_comunidad()
-        if "votos" not in datos:
-            datos["votos"] = {"positivos": 0, "negativos": 0}
-        if es_positivo:
-            datos["votos"]["positivos"] += 1
-        else:
-            datos["votos"]["negativos"] += 1
-        try:
-            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-                json.dump(datos, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
-        st.session_state.datos_comunidad = datos
-
-def agregar_opinion(nueva_op):
-    """Añade opinión de forma atómica en disco."""
-    with FILE_LOCK:
-        datos = cargar_datos_comunidad()
-        datos.setdefault("opiniones", []).append(nueva_op)
-        try:
-            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-                json.dump(datos, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
-        st.session_state.datos_comunidad = datos
-
-def vaciar_historial_conversaciones():
-    """Vacía el historial en disco."""
-    with FILE_LOCK:
-        datos = cargar_datos_comunidad()
-        datos["historial_conversaciones"] = []
-        try:
-            with open(RUTA_COMUNIDAD, "w", encoding="utf-8") as f:
-                json.dump(datos, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
-        st.session_state.datos_comunidad = datos
 
 # ----------------- MOTOR DE EVALUACIÓN DE AGENTES GOOGLE ADK -----------------
 def evaluar_respuesta_adk(agente, pregunta, respuesta, duracion, tokens_in, tokens_out):
@@ -264,11 +186,18 @@ with st.sidebar:
     
     st.divider()
     
-    # Estado de Servicios de Evaluación ADK
-    st.markdown("""
-    <div style='background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px;'>
+    # Estado de Servicios de Evaluación ADK y Cloud
+    info_storage = get_storage_backend_info()
+    info_secrets = get_secrets_backend_info()
+    
+    st.markdown(f"""
+    <div style='background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px 12px; border-radius: 8px; margin-bottom: 8px;'>
         <span style='color: #34d399; font-weight: bold; font-size: 0.85em;'>🛡️ Servicios de Evaluación ADK</span><br>
         <span style='color: #94a3b8; font-size: 0.8em;'>Estado: <strong>ACTIVO & OPERATIVO</strong></span>
+    </div>
+    <div style='background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 8px 12px; border-radius: 8px; margin-bottom: 12px;'>
+        <span style='color: #60a5fa; font-weight: bold; font-size: 0.85em;'>☁️ Nube: {info_storage["icono"]} {info_storage["nombre"]}</span><br>
+        <span style='color: #94a3b8; font-size: 0.78em;'>Credenciales: <strong>{info_secrets["icono"]} {info_secrets["origen"]}</strong></span>
     </div>
     """, unsafe_allow_html=True)
     
