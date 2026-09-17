@@ -33,9 +33,27 @@ api_key = get_gemini_api_key()
 
 from google import genai
 from primer_ministro.agent import INSTRUCCION_PRIME_MINISTER
-from ministros.economia import INSTRUCCION_ECONOMIA
-from ministros.educacion import INSTRUCCION_EDUCACION
-from ministros.interior import INSTRUCCION_INTERIOR
+from ministros.economia import (
+    INSTRUCCION_ECONOMIA,
+    obtener_datos_ine,
+    obtener_datos_banco_espana,
+    consultar_boe_legislacion_fiscal
+)
+from ministros.educacion import (
+    INSTRUCCION_EDUCACION,
+    obtener_datos_educacion_espana,
+    obtener_datos_eurostat_educacion,
+    obtener_datos_universidades_siiu
+)
+from ministros.interior import (
+    INSTRUCCION_INTERIOR,
+    obtener_datos_criminalidad_interior,
+    obtener_datos_aemet_emergencias,
+    obtener_datos_dgt_trafico
+)
+
+# Motor de Observabilidad y Trazabilidad de Agentes (LLM Tracing & Spans)
+from services.tracer import TraceContext, SpanType, SpanStatus
 
 # Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
 from services.storage import (
@@ -145,6 +163,174 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", max_intent
             st.error("⚠️ El servidor de Gemini tuvo un fallo temporal de conexión. Por favor, vuelve a enviar tu pregunta.")
             raise e
 
+def resolver_grounding_tools(interlocutor: str, pregunta: str, trace: TraceContext) -> tuple[str, list[str]]:
+    """Ejecuta y traza las herramientas oficiales de los ministros según el contexto."""
+    contexto_herramientas = []
+    preg_lower = pregunta.lower()
+
+    # 1. Herramientas de Economía
+    if any(k in interlocutor for k in ["Economía", "Primer Ministro", "Gabinete Completo"]) and any(
+        k in preg_lower for k in ["ipc", "inflac", "paro", "empleo", "pib", "deuda", "euribor", "hipoteca", "impuesto", "fiscal", "presupuesto", "dinero", "econom"]
+    ):
+        with trace.span("Tool: INE Oficial API (IPC/Paro)", SpanType.TOOL, inputs={"indicador": "ipc_paro"}, metadata={"fuente": "servicios.ine.es"}) as s:
+            datos_ine = obtener_datos_ine("ipc" if "ipc" in preg_lower or "inflac" in preg_lower else "paro")
+            s.finish(outputs=datos_ine)
+            contexto_herramientas.append(datos_ine)
+
+        if any(k in preg_lower for k in ["euribor", "hipoteca", "deuda", "tipo", "interes", "bce"]):
+            with trace.span("Tool: Banco de España (Tipos & Euríbor)", SpanType.TOOL, inputs={"tipo": "euribor"}, metadata={"fuente": "bde.es"}) as s:
+                datos_bde = obtener_datos_banco_espana("euribor")
+                s.finish(outputs=datos_bde)
+                contexto_herramientas.append(datos_bde)
+
+        if any(k in preg_lower for k in ["ley", "fiscal", "impuesto", "presupuesto", "boe", "legal"]):
+            with trace.span("Tool: BOE (Legislación Fiscal)", SpanType.TOOL, inputs={"busqueda": "presupuestos"}, metadata={"fuente": "boe.es"}) as s:
+                datos_boe = consultar_boe_legislacion_fiscal("presupuestos")
+                s.finish(outputs=datos_boe)
+                contexto_herramientas.append(datos_boe)
+
+    # 2. Herramientas de Educación
+    if any(k in interlocutor for k in ["Educación", "Primer Ministro", "Gabinete Completo"]) and any(
+        k in preg_lower for k in ["educac", "colegio", "universidad", "escuela", "estudiante", "stem", "pisa", "fp", "profesor", "beca"]
+    ):
+        with trace.span("Tool: Ministerio de Educación (Gasto & Ratios)", SpanType.TOOL, inputs={"tipo": "gasto"}, metadata={"fuente": "educacion.gob.es"}) as s:
+            datos_edu = obtener_datos_educacion_espana("gasto")
+            s.finish(outputs=datos_edu)
+            contexto_herramientas.append(datos_edu)
+
+        if any(k in preg_lower for k in ["stem", "europa", "eurostat", "comparat"]):
+            with trace.span("Tool: Eurostat (Comparativa STEM)", SpanType.TOOL, inputs={"area": "stem"}, metadata={"fuente": "ec.europa.eu/eurostat"}) as s:
+                datos_euro = obtener_datos_eurostat_educacion("stem")
+                s.finish(outputs=datos_euro)
+                contexto_herramientas.append(datos_euro)
+
+    # 3. Herramientas de Interior
+    if any(k in interlocutor for k in ["Interior", "Primer Ministro", "Gabinete Completo"]) and any(
+        k in preg_lower for k in ["seguridad", "polic", "delito", "ciber", "trafico", "dgt", "accidente", "emergencia", "aemet", "clima", "temporal"]
+    ):
+        if any(k in preg_lower for k in ["ciber", "delito", "crimen", "seguridad"]):
+            with trace.span("Tool: Ministerio del Interior (Criminalidad)", SpanType.TOOL, inputs={"tipo": "ciber"}, metadata={"fuente": "interior.gob.es"}) as s:
+                datos_crim = obtener_datos_criminalidad_interior("ciber")
+                s.finish(outputs=datos_crim)
+                contexto_herramientas.append(datos_crim)
+
+        if any(k in preg_lower for k in ["aemet", "lluvia", "temporal", "emergencia", "clima"]):
+            with trace.span("Tool: AEMET & Protección Civil", SpanType.TOOL, inputs={"tipo": "avisos"}, metadata={"fuente": "aemet.es"}) as s:
+                datos_aemet = obtener_datos_aemet_emergencias("avisos")
+                s.finish(outputs=datos_aemet)
+                contexto_herramientas.append(datos_aemet)
+
+        if any(k in preg_lower for k in ["dgt", "trafico", "carretera", "radar"]):
+            with trace.span("Tool: DGT (Seguridad Vial)", SpanType.TOOL, inputs={"tipo": "seguridad"}, metadata={"fuente": "dgt.es"}) as s:
+                datos_dgt = obtener_datos_dgt_trafico("seguridad")
+                s.finish(outputs=datos_dgt)
+                contexto_herramientas.append(datos_dgt)
+
+    texto_grounding = "\n".join(contexto_herramientas) if contexto_herramientas else ""
+    return texto_grounding, contexto_herramientas
+
+
+def render_observability_panel(trace_data: Dict[str, Any], key_prefix: str = "trace"):
+    """Renderiza el panel de observabilidad, árbol de spans y telemetría de ejecución."""
+    summary = trace_data.get("summary", {})
+    spans = trace_data.get("spans", [])
+    eval_adk = trace_data.get("adk_eval", {})
+    trace_id = trace_data.get("trace_id", "tr-local")
+    total_ms = trace_data.get("total_duration_ms", summary.get("total_duration_ms", trace_data.get("duracion", 1.0) * 1000))
+    if total_ms <= 0:
+        total_ms = 1.0
+
+    st.markdown(f"#### 🔬 Observabilidad & Spans (`{trace_id}`)")
+
+    if eval_adk:
+        st.markdown(f"**Puntuación de Calidad Google ADK:** **{eval_adk.get('score_global', 95)} / 100**")
+        st.progress(eval_adk.get("score_global", 95) / 100.0)
+
+        col_ev1, col_ev2, col_ev3, col_ev4 = st.columns(4)
+        with col_ev1:
+            st.metric("🎯 Fidelidad", f"{eval_adk.get('fidelidad', 98)}%")
+        with col_ev2:
+            st.metric("📐 Coherencia", f"{eval_adk.get('coherencia', 95)}%")
+        with col_ev3:
+            st.metric("⏱️ Latencia Total", f"{total_ms / 1000.0:.2f}s")
+        with col_ev4:
+            tokens_in = summary.get("tokens_in", trace_data.get("tokens_in", 0))
+            tokens_out = summary.get("tokens_out", trace_data.get("tokens_out", 0))
+            st.metric("⚡ Tokens In/Out", f"{tokens_in} / {tokens_out}")
+
+    st.markdown(f"""
+    <div style='margin-top: 8px; margin-bottom: 12px;'>
+        <span class='trace-pill pill-green'>🛡️ Seguridad: {eval_adk.get('seguridad', 'PASSED')}</span>
+        <span class='trace-pill pill-blue'>📊 Spans: {len(spans) if spans else 1} fases</span>
+        <span class='trace-pill pill-amber'>💰 Coste: 0,00 € (Free Tier)</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Execution Waterfall (Cascada de Spans)
+    if spans:
+        st.markdown("##### 🌳 Árbol de Ejecución (Execution Waterfall)")
+        type_icons = {
+            "routing": "🧭 [ROUTING]",
+            "agent": "🤖 [AGENT]",
+            "tool": "🛠️ [TOOL]",
+            "llm": "⚡ [LLM]",
+            "eval": "🛡️ [EVAL]"
+        }
+        type_colors = {
+            "routing": "#60a5fa",
+            "agent": "#a78bfa",
+            "tool": "#34d399",
+            "llm": "#fbbf24",
+            "eval": "#38bdf8"
+        }
+
+        for idx, span in enumerate(spans):
+            s_name = span.get("name", "Span")
+            s_type = span.get("span_type", "agent")
+            s_ms = span.get("duration_ms", 0.0)
+            s_status = span.get("status", "OK")
+            pct = min(100.0, max(5.0, (s_ms / total_ms) * 100.0))
+            icon = type_icons.get(s_type, "🔹")
+            color = type_colors.get(s_type, "#60a5fa")
+
+            col_s1, col_s2, col_s3 = st.columns([3, 1, 1])
+            with col_s1:
+                st.markdown(f"<span style='color:{color}; font-weight:600; font-size:0.85em;'>{icon}</span> **{s_name}**", unsafe_allow_html=True)
+            with col_s2:
+                badge_color = "#34d399" if s_status == "OK" else "#f87171"
+                st.markdown(f"<span style='color:{badge_color}; font-size:0.8em; font-weight:bold;'>{s_status}</span>", unsafe_allow_html=True)
+            with col_s3:
+                st.markdown(f"<span style='color:#94a3b8; font-size:0.8em;'>{s_ms:.1f} ms</span>", unsafe_allow_html=True)
+
+            st.progress(pct / 100.0)
+
+            # Acordeón con payload del span si tiene inputs o outputs
+            has_payload = bool(span.get("inputs") or span.get("outputs") or span.get("metadata"))
+            if has_payload:
+                with st.expander(f"📦 Payload: {s_name} ({s_ms:.1f} ms)", expanded=False):
+                    if span.get("inputs"):
+                        st.caption("Entradas (Inputs):")
+                        st.json(span["inputs"])
+                    if span.get("outputs"):
+                        st.caption("Salidas (Outputs):")
+                        if isinstance(span["outputs"], (dict, list)):
+                            st.json(span["outputs"])
+                        else:
+                            st.code(str(span["outputs"]))
+                    if span.get("metadata"):
+                        st.caption("Metadatos (Metadata):")
+                        st.json(span["metadata"])
+
+    # Botón para descargar el JSON completo de la traza
+    trace_json_str = json.dumps(trace_data, indent=2, ensure_ascii=False)
+    st.download_button(
+        label="📥 Descargar Traza OpenTelemetry / OpenInference (JSON)",
+        data=trace_json_str,
+        file_name=f"{trace_id}.json",
+        mime="application/json",
+        key=f"btn_trace_{key_prefix}_{trace_id}"
+    )
+
 # ----------------- BARRA LATERAL: INFORMACIÓN Y SERVICIOS ADK -----------------
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/courthouse.png", width=64)
@@ -246,32 +432,8 @@ with tab1:
         with st.chat_message(msg["role"], avatar="🧑‍💻" if msg["role"] == "user" else "🏛️"):
             st.markdown(msg["content"])
             if "trace" in msg:
-                t = msg["trace"]
-                eval_data = t.get("adk_eval", {})
-                with st.expander("🔍 Trazabilidad y Evaluación de Servicios Google ADK"):
-                    if eval_data:
-                        st.markdown(f"#### 🏆 Puntuación de Evaluación ADK: **{eval_data.get('score_global', 95)} / 100**")
-                        st.progress(eval_data.get('score_global', 95) / 100.0)
-                        
-                        col_ev1, col_ev2, col_ev3 = st.columns(3)
-                        with col_ev1:
-                            st.metric("🎯 Fidelidad al Rol", f"{eval_data.get('fidelidad', 98)}%")
-                        with col_ev2:
-                            st.metric("📐 Coherencia Técnica", f"{eval_data.get('coherencia', 95)}%")
-                        with col_ev3:
-                            st.metric("⚡ Velocidad ADK", f"{eval_data.get('tok_per_sec', 0)} tok/s")
-                            
-                    st.markdown(f"""
-                    <div style='margin-top: 10px;'>
-                        <span class='trace-pill pill-green'>🛡️ Seguridad ADK: {eval_data.get('seguridad', 'PASSED')}</span>
-                        <span class='trace-pill pill-blue'>⏱️ Latencia: {t['duracion']:.2f}s ({eval_data.get('grade_latencia', 'A')})</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens In: {t['tokens_in']}</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens Out: {t['tokens_out']}</span>
-                        <span class='trace-pill pill-amber'>📊 Total Tokens: {t['tokens_total']}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    st.text(f"Timestamp: {t['timestamp']} | Agente: {t['agente']} | Modelo: {t['modelo']}")
-                    st.text(f"System Prompt ({len(t['system_prompt'])} caracteres):\n{t['system_prompt'][:200]}...")
+                with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=False):
+                    render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', id(msg))}")
 
     pregunta_usuario = st.chat_input("Escribe tu pregunta para el gobierno...")
     
@@ -281,16 +443,27 @@ with tab1:
             st.markdown(pregunta_usuario)
             
         with st.chat_message("assistant", avatar="🏛️"):
-            with st.spinner(f"{nombre_agente} analizando la cuestión..."):
+            with st.spinner(f"{nombre_agente} analizando la cuestión y orquestando herramientas..."):
                 if not api_key:
                     st.error("Configura tu GEMINI_API_KEY en .env o en los Secrets de Streamlit.")
                     st.stop()
                     
                 client = genai.Client(api_key=api_key)
                 
-                # Regla de adaptabilidad al prompt para respuestas simples ante saludos o preguntas triviales
+                # Iniciar Trace de Observabilidad Distribuida
+                trace = TraceContext(trace_name=f"consulta_{nombre_agente.lower().replace(' ', '_')}")
+                
+                # 1. Span de Orquestación & Enrutamiento (Google ADK)
+                with trace.span(f"Orquestación ADK: {nombre_agente}", SpanType.ROUTING, inputs={"interlocutor": nombre_agente, "pregunta": pregunta_usuario}, metadata={"supervisor": "primer_ministro"}):
+                    texto_grounding, tools_usadas = resolver_grounding_tools(interlocutor, pregunta_usuario, trace)
+                
+                # Inyectar evidencia de las herramientas oficiales si aplica
+                bloque_evidencia = ""
+                if texto_grounding:
+                    bloque_evidencia = f"\n\nDATOS OFICIALES EN TIEMPO REAL OBTENIDOS POR LAS HERRAMIENTAS (GROUNDING):\n{texto_grounding}\nUsa estos datos oficiales para fundamentar tu respuesta técnica con máxima precisión."
+                
                 prompt_completo = f"""
-{prompt_sistema}
+{prompt_sistema}{bloque_evidencia}
 
 REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
 - Si el mensaje del ciudadano es un saludo, una pregunta de cortesía o una duda sencilla sobre tus funciones (ej: "Hola", "Buenos días", "¿Para qué sirves?", "¿Quién eres?", "¿Qué haces?", "Gracias"):
@@ -301,59 +474,47 @@ REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
 MENSAJE DEL CIUDADANO:
 {pregunta_usuario}
 """
-                
+                modelo_activo = os.getenv("MODEL_NAME", "gemini-2.5-flash")
                 t0 = time.perf_counter()
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
                 fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                response = generar_con_reintento(client, prompt_completo)
+                
+                # 2. Span de Inferencia LLM
+                with trace.span(f"Inferencia LLM ({modelo_activo})", SpanType.LLM, inputs={"modelo": modelo_activo, "prompt_chars": len(prompt_completo)}) as s_llm:
+                    response = generar_con_reintento(client, prompt_completo, model=modelo_activo)
+                    tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
+                    tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
+                    s_llm.finish(outputs={"tokens_in": tokens_in, "tokens_out": tokens_out}, metadata={"tokens_in": tokens_in, "tokens_out": tokens_out})
+                    
                 duracion = time.perf_counter() - t0
                 
-                tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
-                tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
+                # 3. Span de Evaluación Google ADK
+                with trace.span("Evaluación de Calidad Google ADK", SpanType.EVAL, inputs={"agente": nombre_agente}) as s_eval:
+                    eval_adk = evaluar_respuesta_adk(nombre_agente, pregunta_usuario, response.text, duracion, tokens_in, tokens_out)
+                    s_eval.finish(outputs=eval_adk)
                 
-                # Evaluación automática del servicio Google ADK
-                eval_adk = evaluar_respuesta_adk(nombre_agente, pregunta_usuario, response.text, duracion, tokens_in, tokens_out)
-                
-                trace_data = {
-                    "agente": nombre_agente,
-                    "modelo": "gemini-3.6-flash",
-                    "duracion": duracion,
-                    "tokens_in": tokens_in,
-                    "tokens_out": tokens_out,
-                    "tokens_total": tokens_in + tokens_out,
-                    "system_prompt": prompt_sistema.strip(),
-                    "timestamp": ts_inicio,
-                    "adk_eval": eval_adk
-                }
+                # Finalizar traza completa
+                trace.finish()
+                trace_dict = trace.to_dict()
+                trace_dict["adk_eval"] = eval_adk
+                trace_dict["agente"] = nombre_agente
+                trace_dict["modelo"] = modelo_activo
+                trace_dict["tokens_in"] = tokens_in
+                trace_dict["tokens_out"] = tokens_out
+                trace_dict["tokens_total"] = tokens_in + tokens_out
+                trace_dict["system_prompt"] = prompt_sistema.strip()
+                trace_dict["timestamp"] = ts_inicio
+                trace_dict["duracion"] = duracion
                 
                 st.markdown(response.text)
                 
-                with st.expander("🔍 Trazabilidad y Evaluación de Servicios Google ADK", expanded=True):
-                    st.markdown(f"#### 🏆 Puntuación de Evaluación ADK: **{eval_adk['score_global']} / 100**")
-                    st.progress(eval_adk['score_global'] / 100.0)
-                    
-                    col_ev1, col_ev2, col_ev3 = st.columns(3)
-                    with col_ev1:
-                        st.metric("🎯 Fidelidad al Rol", f"{eval_adk['fidelidad']}%")
-                    with col_ev2:
-                        st.metric("📐 Coherencia Técnica", f"{eval_adk['coherencia']}%")
-                    with col_ev3:
-                        st.metric("⚡ Velocidad ADK", f"{eval_adk['tok_per_sec']} tok/s")
-                        
-                    st.markdown(f"""
-                    <div style='margin-top: 10px;'>
-                        <span class='trace-pill pill-green'>🛡️ Seguridad ADK: {eval_adk['seguridad']}</span>
-                        <span class='trace-pill pill-blue'>⏱️ Latencia: {duracion:.2f}s ({eval_adk['grade_latencia']})</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens In: {tokens_in}</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens Out: {tokens_out}</span>
-                        <span class='trace-pill pill-amber'>📊 Total: {tokens_in + tokens_out}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=True):
+                    render_observability_panel(trace_dict, key_prefix="chat_current")
                 
                 st.session_state.chat_messages.append({
                     "role": "assistant",
                     "content": response.text,
-                    "trace": trace_data
+                    "trace": trace_dict
                 })
                 
                 # Guardado atómico e inmune a concurrencia
@@ -363,7 +524,7 @@ MENSAJE DEL CIUDADANO:
                     "pregunta": pregunta_usuario,
                     "respuesta": response.text,
                     "fecha": fecha_completa,
-                    "telemetria": trace_data
+                    "telemetria": trace_dict
                 }
                 agregar_conversacion_al_historial(nueva_conv)
 
@@ -442,15 +603,8 @@ with tab2:
                             st.metric("⚡ Velocidad ADK", f"{eval_adk.get('tok_per_sec', 0)} tok/s")
                             
                 if telemetria:
-                    t = telemetria
-                    st.markdown(f"""
-                    <div style='margin-top: 10px;'>
-                        <span class='trace-pill pill-blue'>⏱️ Latencia: {t.get('duracion', 0):.2f}s</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens In: {t.get('tokens_in', 0)}</span>
-                        <span class='trace-pill pill-green'>🏷️ Tokens Out: {t.get('tokens_out', 0)}</span>
-                        <span class='trace-pill pill-amber'>📊 Total Tokens: {t.get('tokens_total', 0)}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    with st.expander("🔍 Observabilidad & Spans de la Interacción"):
+                        render_observability_panel(telemetria, key_prefix=f"hist_{i}")
 
 # -------------------------------------------------------------
 # TAB 3: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS REAL

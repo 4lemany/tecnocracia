@@ -18,6 +18,12 @@ from .secrets_manager import (
 from .evaluacion import (
     evaluar_respuesta_adk,
 )
+from .tracer import (
+    TraceContext,
+    Span,
+    SpanType,
+    SpanStatus,
+)
 
 __all__ = [
     "cargar_datos_comunidad",
@@ -29,4 +35,8 @@ __all__ = [
     "get_gemini_api_key",
     "get_secrets_backend_info",
     "evaluar_respuesta_adk",
+    "TraceContext",
+    "Span",
+    "SpanType",
+    "SpanStatus",
 ]
