@@ -57,7 +57,7 @@ def consultar_gabinete(request):
 
     try:
         response = client.models.generate_content(
-            model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
+            model=os.getenv("MODEL_NAME", "gemini-3.6-flash"),
             contents=f"Instrucción de rol: {instruccion}\n\nPregunta ciudadana: {pregunta}"
         )
         return (json.dumps({

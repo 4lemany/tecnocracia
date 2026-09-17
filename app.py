@@ -152,7 +152,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
-def generar_con_reintento(client, contents, model="gemini-2.5-flash", config=None, max_intentos=4):
+def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=None, max_intentos=4):
     """
     Invoca a Google Gemini con política de reintentos exponenciales, control de tokens y degradación elegante.
     Retorna (response, None) en caso de éxito, o (None, error_diag) si se agotan los reintentos
@@ -581,7 +581,7 @@ REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
 MENSAJE DEL CIUDADANO:
 {pregunta_usuario}
 """
-                modelo_activo = os.getenv("MODEL_NAME", "gemini-2.5-flash")
+                modelo_activo = os.getenv("MODEL_NAME", "gemini-3.6-flash")
                 t0 = time.perf_counter()
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
                 fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")

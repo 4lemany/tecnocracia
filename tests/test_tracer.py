@@ -112,6 +112,15 @@ class TestTracer(unittest.TestCase):
         self.assertEqual(diag["codigo_tecnico"], "NETWORK_TIMEOUT")
         self.assertTrue(diag["es_transitorio"])
 
+    def test_diagnosticar_error_model_deprecated(self):
+        """Valida la detección y explicación cuando un modelo es retirado por Google (404)."""
+        from services.tracer import diagnosticar_error_gemini
+        exc = Exception("ClientError: 404 NOT_FOUND. This model models/gemini-2.5-flash is no longer available to new users.")
+        diag = diagnosticar_error_gemini(exc)
+        self.assertEqual(diag["categoria"], "MODELO_NO_DISPONIBLE")
+        self.assertEqual(diag["codigo_tecnico"], "HTTP 404 - NOT_FOUND")
+        self.assertIn("gemini-3.6-flash", diag["explicacion"])
+
 
 if __name__ == "__main__":
     unittest.main()

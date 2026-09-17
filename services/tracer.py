@@ -22,6 +22,23 @@ def diagnosticar_error_gemini(e: Exception) -> Dict[str, Any]:
     err_str = str(e)
     err_type = type(e).__name__
 
+    # 0. Modelo no encontrado o descatalogado por Google (404 NOT_FOUND)
+    if any(k in err_str for k in ["404", "NOT_FOUND", "not found", "no longer available", "models/"]):
+        return {
+            "categoria": "MODELO_NO_DISPONIBLE",
+            "titulo": "Modelo de Gemini Descatalogado o No Disponible",
+            "codigo_tecnico": "HTTP 404 - NOT_FOUND",
+            "explicacion": (
+                "La versión del modelo solicitada ha sido retirada o no está disponible para nuevos usuarios en la API de Google AI Studio. "
+                "Google recomienda utilizar 'gemini-3.6-flash' para disfrutar de las últimas mejoras y soporte oficial."
+            ),
+            "accion_recomendada": "Se ha actualizado automáticamente a gemini-3.6-flash. Vuelve a enviar tu pregunta.",
+            "es_transitorio": False,
+            "icono": "📦",
+            "color_badge": "#eab308",
+            "detalle_tecnico": f"{err_type}: {err_str[:250]}"
+        }
+
     # 1. Límite de cuota / Rate limit (429 / RESOURCE_EXHAUSTED)
     if any(k in err_str for k in ["429", "RESOURCE_EXHAUSTED", "quota", "QuotaExceeded", "rate limit", "RateLimit"]):
         return {
