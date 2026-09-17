@@ -62,14 +62,16 @@ except ImportError:
         importlib.reload(sys.modules["services.tracer"])
     from services.tracer import TraceContext, SpanType, SpanStatus, diagnosticar_error_gemini
 
-# Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
+# Persistencia Híbrida Gestionada (GitHub Gist Gratuito / Fallback Local / Firestore)
 from services.storage import (
     cargar_datos_comunidad,
     agregar_conversacion_al_historial,
     registrar_voto,
     agregar_opinion,
     vaciar_historial_conversaciones,
-    get_storage_backend_info
+    get_storage_backend_info,
+    exportar_datos_comunidad_json,
+    restaurar_datos_comunidad
 )
 
 # Motor de Evaluación de Agentes Google ADK
@@ -84,63 +86,108 @@ if "chat_messages" not in st.session_state:
 if "ha_votado" not in st.session_state:
     st.session_state.ha_votado = False
 
-# Estilos CSS premium dark mode con Responsive Design y Tarjetas ADK
+# Estilos CSS con Alto Contraste, Responsive Design y Tarjetas Adaptativas (WCAG AAA)
 st.markdown("""
 <style>
-    .main { background-color: #0b0f19; }
-    
     p, span, div, h1, h2, h3, h4, h5, h6, .stMarkdown {
         word-wrap: break-word !important;
         overflow-wrap: break-word !important;
         hyphens: auto;
     }
     
-    /* Estilos de Métricas con Contraste Elevado (Garantiza lectura en Tema Claro y Oscuro) */
+    /* Estilos de Métricas Adaptativas: Fondo Limpio, Moderno y 100% Legible en Tema Claro */
     [data-testid="stMetric"], .stMetric {
-        background: linear-gradient(135deg, #1e293b, #0f172a) !important;
-        border: 1px solid #334155 !important;
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 12px !important;
-        padding: 14px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+        padding: 14px 16px !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05) !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
     }
-    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *, .stMetric label {
-        color: #38bdf8 !important; /* Azul cian vivo y muy nítido */
+    [data-testid="stMetric"]:hover {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15) !important;
+    }
+    [data-testid="stMetric"] * {
+        color: #0f172a !important;
+    }
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *, .stMetric label, [data-testid="stMetricLabel"] p {
+        color: #0369a1 !important; /* Azul cobalto vivo y nítido */
         font-weight: 700 !important;
         font-size: 0.9em !important;
     }
-    [data-testid="stMetricValue"], [data-testid="stMetricValue"] *, .stMetric [data-testid="stMetricValue"] {
-        color: #ffffff !important; /* Blanco puro */
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] *, .stMetric [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+        color: #0f172a !important; /* Texto oscuro de alto contraste */
         font-weight: 800 !important;
-        font-size: 1.6rem !important;
+        font-size: 1.55rem !important;
     }
     [data-testid="stMetricDelta"], [data-testid="stMetricDelta"] * {
-        color: #94a3b8 !important;
+        color: #64748b !important;
+    }
+
+    /* Soporte Adaptativo si el usuario o navegador usa Tema Oscuro */
+    @media (prefers-color-scheme: dark) {
+        [data-testid="stMetric"], .stMetric {
+            background: #1e293b !important;
+            border: 1px solid #334155 !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+        }
+        [data-testid="stMetric"] * {
+            color: #f8fafc !important;
+        }
+        [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *, .stMetric label, [data-testid="stMetricLabel"] p {
+            color: #38bdf8 !important; /* Azul cian luminoso */
+        }
+        [data-testid="stMetricValue"], [data-testid="stMetricValue"] *, .stMetric [data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+            color: #ffffff !important; /* Blanco puro */
+        }
     }
 
     .opinion-card {
-        background: #1e293b !important;
+        background: #f8fafc !important;
         border-left: 5px solid #3b82f6 !important;
-        border: 1px solid #334155 !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important;
         padding: 14px !important;
         margin-bottom: 12px !important;
-        color: #ffffff !important;
+        color: #0f172a !important;
     }
     .opinion-card strong {
-        color: #38bdf8 !important;
+        color: #0369a1 !important;
     }
     .opinion-card p {
-        color: #f1f5f9 !important;
+        color: #1e293b !important;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .opinion-card {
+            background: #1e293b !important;
+            border: 1px solid #334155 !important;
+            color: #ffffff !important;
+        }
+        .opinion-card strong {
+            color: #38bdf8 !important;
+        }
+        .opinion-card p {
+            color: #f1f5f9 !important;
+        }
     }
 
     .adk-eval-card {
-        background: #0f172a !important;
+        background: #f1f5f9 !important;
         border: 1px solid #3b82f6 !important;
         border-radius: 10px !important;
         padding: 16px !important;
         margin-top: 10px !important;
-        color: #ffffff !important;
+        color: #0f172a !important;
     }
+    @media (prefers-color-scheme: dark) {
+        .adk-eval-card {
+            background: #0f172a !important;
+            color: #ffffff !important;
+        }
+    }
+
     .trace-pill {
         display: inline-block;
         padding: 4px 10px;
@@ -151,13 +198,20 @@ st.markdown("""
         margin-bottom: 6px;
         white-space: normal;
     }
-    .pill-blue { background-color: #1e3a8a !important; color: #bfdbfe !important; border: 1px solid #3b82f6 !important; }
-    .pill-green { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #10b981 !important; }
-    .pill-amber { background-color: #78350f !important; color: #fde68a !important; border: 1px solid #f59e0b !important; }
-    .badge-eco { background-color: #064e3b; color: #6ee7b7; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-edu { background-color: #1e3a8a; color: #93c5fd; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-int { background-color: #831843; color: #f472b6; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-pm  { background-color: #78350f; color: #fde68a; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .pill-blue { background-color: #eff6ff !important; color: #1d4ed8 !important; border: 1px solid #93c5fd !important; }
+    .pill-green { background-color: #ecfdf5 !important; color: #047857 !important; border: 1px solid #6ee7b7 !important; }
+    .pill-amber { background-color: #fffbeb !important; color: #b45309 !important; border: 1px solid #fcd34d !important; }
+
+    @media (prefers-color-scheme: dark) {
+        .pill-blue { background-color: #1e3a8a !important; color: #bfdbfe !important; border: 1px solid #3b82f6 !important; }
+        .pill-green { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #10b981 !important; }
+        .pill-amber { background-color: #78350f !important; color: #fde68a !important; border: 1px solid #f59e0b !important; }
+    }
+
+    .badge-eco { background-color: #ecfdf5; color: #065f46; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-edu { background-color: #eff6ff; color: #1e40af; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-int { background-color: #fdf2f8; color: #9d174d; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-pm  { background-color: #fffbeb; color: #92400e; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
 
     @media (max-width: 768px) {
         .main .block-container {
@@ -482,6 +536,40 @@ with st.sidebar:
         st.caption("👍 0 a favor | 👎 0 en contra (Sin votos aún)")
     
     st.divider()
+    st.subheader("💾 Persistencia y Copias de Seguridad")
+    with st.expander("⚙️ Gestión de Datos (100% Gratis)", expanded=False):
+        st.markdown(f"**Backend Actual:** {info_storage['icono']} **{info_storage['nombre']}**")
+        st.caption(info_storage["descripcion"])
+        
+        # Botón de Descarga de Backup JSON
+        backup_json_str = exportar_datos_comunidad_json()
+        st.download_button(
+            label="📥 Descargar Copia de Seguridad (JSON)",
+            data=backup_json_str,
+            file_name="tecnocracia_backup.json",
+            mime="application/json",
+            use_container_width=True
+        )
+        
+        # Subida / Restauración de Backup
+        archivo_subido = st.file_uploader("📤 Restaurar Backup JSON", type=["json"], key="sidebar_backup_file")
+        if archivo_subido is not None:
+            try:
+                import json
+                datos_cargados = json.loads(archivo_subido.getvalue().decode("utf-8"))
+                if restaurar_datos_comunidad(datos_cargados):
+                    st.success("✅ Copia de seguridad restaurada correctamente.")
+                    st.session_state.datos_comunidad = cargar_datos_comunidad()
+                    st.rerun()
+                else:
+                    st.error("El archivo JSON no contiene las claves requeridas.")
+            except Exception as e_res:
+                st.error(f"Error al importar archivo: {e_res}")
+
+        if info_storage["tipo"] == "json_local":
+            st.info("💡 **Persistencia Gratuita Permanente:** Si deseas que los votos y el historial no se borren nunca al hibernar Streamlit Cloud y sin usar Google Cloud, puedes conectar un **GitHub Gist privado** configurando `GITHUB_GIST_ID` y `GITHUB_TOKEN` en tus Secrets.")
+
+    st.divider()
     st.subheader("🏛️ Miembros del Gabinete")
     st.markdown("""
     * 👑 **Primer Ministro:** Coordinador y árbitro general.
@@ -520,21 +608,23 @@ with tab1:
             ]
         )
     with col_mode:
-        modo_respuesta = st.radio(
-            "Profundidad y Consumo de Tokens:",
+        modo_respuesta = st.selectbox(
+            "Profundidad de Análisis:",
             [
-                "⚡ Ejecutivo (Conciso - Ahorro Tokens)",
-                "📑 Detallado (Informe Exhaustivo)"
+                "⚡ Modo Ejecutivo (Conciso, directo, ahorro de tokens)",
+                "📑 Modo Detallado (Exhaustivo con dictamen técnico)"
             ],
-            horizontal=True,
-            help="⚡ Modo Ejecutivo: Síntesis en 3-4 viñetas clave (Ahorra ~70% de tokens y responde en 1-2s). 📑 Modo Detallado: Desglose analítico completo con todas las métricas."
+            index=0,
+            help="Elige si deseas una resolución rápida optimizada en tokens o un dictamen técnico exhaustivo."
         )
+        es_ejecutivo = "Ejecutivo" in modo_respuesta
     with col_ag2:
-        if st.button("🗑️ Limpiar", use_container_width=True):
+        st.write("")
+        st.write("")
+        if st.button("🧹 Limpiar", use_container_width=True, help="Reiniciar la sesión de chat activa"):
             st.session_state.chat_messages = []
             st.rerun()
 
-    es_ejecutivo = "Ejecutivo" in modo_respuesta
     max_tokens = 1500 if es_ejecutivo else 3000
 
     prompts_map = {
@@ -546,6 +636,26 @@ with tab1:
     }
     
     nombre_agente, prompt_sistema = prompts_map[interlocutor]
+
+    # Reanudación inteligente: si no hay mensajes en la sesión actual pero sí en el historial persistente
+    if not st.session_state.chat_messages:
+        hist_disponible = datos_actuales.get("historial_conversaciones", [])
+        if hist_disponible:
+            ultima_interaccion = hist_disponible[-1]
+            pregunta_corta = ultima_interaccion.get("pregunta", "")[:60]
+            with st.expander(f"🔄 Retomar última consulta registrada: \"{pregunta_corta}...\"", expanded=False):
+                st.markdown(f"**Agente:** `{ultima_interaccion.get('agente')}` | **Fecha:** {ultima_interaccion.get('fecha')}")
+                if st.button("📥 Restaurar esta conversación en el chat interactivo", key="btn_retomar_chat"):
+                    st.session_state.chat_messages.append({
+                        "role": "user",
+                        "content": ultima_interaccion.get("pregunta", "")
+                    })
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": ultima_interaccion.get("respuesta", ""),
+                        "trace": ultima_interaccion.get("telemetria", {})
+                    })
+                    st.rerun()
 
     for idx, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"], avatar="🧑‍💻" if msg["role"] == "user" else "🏛️"):
@@ -745,10 +855,20 @@ with tab2:
         with col_h2:
             st.metric("Último Registro", historial[-1]["fecha"].split(" ")[1] if historial else "--:--")
         with col_h3:
-            if st.button("🗑️ Vaciar Historial de Conversaciones", use_container_width=True):
-                vaciar_historial_conversaciones()
-                st.success("Historial de conversaciones vaciado con éxito.")
-                st.rerun()
+            col_hb1, col_hb2 = st.columns(2)
+            with col_hb1:
+                st.download_button(
+                    "📥 Backup JSON",
+                    data=exportar_datos_comunidad_json(),
+                    file_name="historial_tecnocracia.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+            with col_hb2:
+                if st.button("🗑️ Vaciar Historial", use_container_width=True):
+                    vaciar_historial_conversaciones()
+                    st.success("Historial de conversaciones vaciado con éxito.")
+                    st.rerun()
                 
         st.divider()
         
