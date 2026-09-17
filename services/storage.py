@@ -187,11 +187,14 @@ def _cargar_datos_gist() -> Any:
                 payload = json.loads(response.read().decode("utf-8"))
                 files = payload.get("files", {})
                 for fname, fcontent in files.items():
-                    if "datos_comunidad" in fname or fname.endswith(".json"):
+                    if "datos_comunidad" in fname or fname.endswith(".json") or len(files) == 1:
                         raw_json = fcontent.get("content", "{}")
                         datos = json.loads(raw_json)
-                        if "votos" in datos and "opiniones" in datos:
-                            # Guardar en copia local para acelerar próximas lecturas
+                        if isinstance(datos, dict):
+                            datos.setdefault("votos", {"positivos": 0, "negativos": 0})
+                            datos.setdefault("opiniones", [])
+                            datos.setdefault("historial_conversaciones", [])
+                            # Guardar en copia local para acelerar lecturas
                             _guardar_datos_local(datos)
                             return datos
     except Exception as e:
@@ -238,13 +241,23 @@ def _sincronizar_gist_asincrono(datos: Dict[str, Any]):
     t.start()
 
 
+def _obtener_datos_frescos() -> Dict[str, Any]:
+    """Obtiene los datos más actualizados disponibles (Gist remoto si existe o local)."""
+    gist_id, token = _get_gist_credentials()
+    if gist_id and token:
+        datos_remotos = _cargar_datos_gist()
+        if datos_remotos is not None:
+            return datos_remotos
+    return _cargar_datos_local()
+
+
 # =====================================================================
 # OPERACIONES PÚBLICAS (GIST / FIRESTORE / LOCAL)
 # =====================================================================
 
 def cargar_datos_comunidad() -> Dict[str, Any]:
     """Carga votos, opiniones e historial desde GitHub Gist, Firestore o disco local."""
-    # 1. Prioridad: GitHub Gist (100% gratuito sin GCP)
+    # 1. Prioridad: GitHub Gist (100% gratuito sin GCP, compartido por todos los usuarios)
     datos_gist = _cargar_datos_gist()
     if datos_gist is not None:
         return datos_gist
@@ -329,8 +342,8 @@ def registrar_voto(es_positivo: bool) -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"Error registrando voto en Firestore: {e}")
 
-    # En local / Gist
-    datos = _cargar_datos_local()
+    # En local / Gist: cargar primero datos frescos para sincronizar
+    datos = _obtener_datos_frescos()
     if "votos" not in datos:
         datos["votos"] = {"positivos": 0, "negativos": 0}
     if es_positivo:
@@ -358,7 +371,7 @@ def agregar_opinion(nueva_op: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"Error agregando opinión en Firestore: {e}")
 
-    datos = _cargar_datos_local()
+    datos = _obtener_datos_frescos()
     datos.setdefault("opiniones", []).append(nueva_op)
     _guardar_datos_local(datos)
     if gist_id and token:
@@ -367,7 +380,7 @@ def agregar_opinion(nueva_op: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def agregar_conversacion_al_historial(nueva_conv: Dict[str, Any]) -> Dict[str, Any]:
-    """Guarda interacción en Gist, Firestore o JSON."""
+    """Guarda interacción en Gist, Firestore o JSON para que todos los usuarios la vean."""
     gist_id, token = _get_gist_credentials()
     client = _init_firestore()
 
@@ -380,7 +393,7 @@ def agregar_conversacion_al_historial(nueva_conv: Dict[str, Any]) -> Dict[str, A
         except Exception as e:
             logger.error(f"Error registrando conversación en Firestore: {e}")
 
-    datos = _cargar_datos_local()
+    datos = _obtener_datos_frescos()
     datos.setdefault("historial_conversaciones", []).append(nueva_conv)
     _guardar_datos_local(datos)
     if gist_id and token:
