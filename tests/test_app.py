@@ -85,13 +85,18 @@ class TestAppLogic(unittest.TestCase):
                 {
                     "fecha": "2026-09-17 14:00:00",
                     "telemetria": {"tokens_in": 100, "tokens_out": 150, "tokens_total": 250, "timestamp": 1726588000}
+                },
+                {
+                    "fecha": "2026-09-17 14:05:00",
+                    "telemetria": {"tokens_in": 200, "tokens_out": 300, "tokens_total": 500, "timestamp": "2026-09-17 14:05:00"}
                 }
             ]
         }
         cuota = obtener_metricas_cuota_gemini(datos_simulados)
         self.assertEqual(cuota["limite_rpd"], 1500)
         self.assertEqual(cuota["limite_rpm"], 15)
-        self.assertIn("peticiones_hoy", cuota)
+        self.assertEqual(cuota["peticiones_hoy"], 2)
+        self.assertEqual(cuota["tokens_hoy"], 750)
         self.assertIn("tiempo_restante_reset", cuota)
         self.assertIn("00:00 UTC", cuota["proximo_reset_hora"])
         self.assertIn("Free Tier", cuota["coste"])

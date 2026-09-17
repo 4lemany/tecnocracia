@@ -491,14 +491,28 @@ def obtener_metricas_cuota_gemini(datos: Dict[str, Any] = None) -> Dict[str, Any
 
     for item in historial:
         fecha_item = str(item.get("fecha", ""))
-        telemetria = item.get("telemetria", {})
+        telemetria = item.get("telemetria", {}) if isinstance(item.get("telemetria"), dict) else {}
         ts_item = telemetria.get("timestamp", 0)
+
+        # Convertir timestamp a float de forma ultra-robusta (soporta números y strings con fecha o época)
+        ts_float = 0.0
+        if isinstance(ts_item, (int, float)):
+            ts_float = float(ts_item)
+        elif isinstance(ts_item, str) and ts_item.strip():
+            try:
+                ts_float = float(ts_item)
+            except ValueError:
+                try:
+                    dt_parsed = datetime.fromisoformat(ts_item.strip().replace(" ", "T"))
+                    ts_float = dt_parsed.timestamp()
+                except Exception:
+                    ts_float = 0.0
 
         # Si coincide con la fecha de hoy en UTC o timestamp
         es_hoy = hoy_utc_str in fecha_item
-        if not es_hoy and ts_item:
+        if not es_hoy and ts_float > 0:
             try:
-                dt_item = datetime.fromtimestamp(ts_item, tz=timezone.utc)
+                dt_item = datetime.fromtimestamp(ts_float, tz=timezone.utc)
                 if dt_item.strftime("%Y-%m-%d") == hoy_utc_str:
                     es_hoy = True
             except Exception:
@@ -508,9 +522,12 @@ def obtener_metricas_cuota_gemini(datos: Dict[str, Any] = None) -> Dict[str, Any
             peticiones_hoy += 1
             tokens_in = telemetria.get("tokens_in", 0) or 0
             tokens_out = telemetria.get("tokens_out", 0) or 0
-            tokens_hoy += (tokens_in + tokens_out)
+            try:
+                tokens_hoy += (int(tokens_in) + int(tokens_out))
+            except (ValueError, TypeError):
+                pass
 
-        if ts_item and ts_item >= ts_hace_un_min:
+        if ts_float > 0 and ts_float >= ts_hace_un_min:
             peticiones_ultimo_minuto += 1
 
     peticiones_restantes = max(0, LIMITE_RPD - peticiones_hoy)
