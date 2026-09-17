@@ -1141,9 +1141,26 @@ MENSAJE DEL CIUDADANO:
                     else:
                         tokens_in = getattr(response.usage_metadata, "prompt_token_count", 0)
                         tokens_out = getattr(response.usage_metadata, "candidates_token_count", 0)
+                        prov_real = getattr(response, "provider", "gemini")
+                        mod_real = getattr(response, "model", modelo_activo)
+                        es_fo = getattr(response, "es_failover", False)
+                        if es_fo and prov_real != proveedor_pref:
+                            s_llm.name = f"Inferencia LLM ({prov_real.upper()} - Fallback desde {proveedor_pref.upper()})"
+                        elif prov_real == "groq":
+                            s_llm.name = f"Inferencia LLM (Groq LPU ({mod_real}))"
+                        else:
+                            s_llm.name = f"Inferencia LLM ({mod_real})"
+
                         s_llm.finish(
                             outputs={"tokens_in": tokens_in, "tokens_out": tokens_out},
-                            metadata={"tokens_in": tokens_in, "tokens_out": tokens_out, "modo": "ejecutivo" if es_ejecutivo else "detallado"}
+                            metadata={
+                                "tokens_in": tokens_in,
+                                "tokens_out": tokens_out,
+                                "modo": "ejecutivo" if es_ejecutivo else "detallado",
+                                "proveedor_efectivo": prov_real,
+                                "modelo_efectivo": mod_real,
+                                "es_failover": es_fo
+                            }
                         )
 
                 duracion = time.perf_counter() - t0
