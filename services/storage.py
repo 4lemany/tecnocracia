@@ -10,10 +10,20 @@ import json
 import logging
 import threading
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger("tecnocracia.storage")
+
+
+def obtener_hora_espana() -> datetime:
+    """Retorna la fecha y hora actual en la zona horaria oficial de España (Europe/Madrid)."""
+    try:
+        return datetime.now(ZoneInfo("Europe/Madrid"))
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=2)))
+
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 RUTA_COMUNIDAD_LOCAL = ROOT_DIR / "data" / "datos_comunidad.json"

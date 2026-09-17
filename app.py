@@ -72,7 +72,8 @@ from services.storage import (
     get_storage_backend_info,
     exportar_datos_comunidad_json,
     restaurar_datos_comunidad,
-    obtener_metricas_cuota_gemini
+    obtener_metricas_cuota_gemini,
+    obtener_hora_espana
 )
 
 # Motor de Evaluación de Agentes Google ADK
@@ -321,6 +322,24 @@ def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
         </details>
     </div>
     """, unsafe_allow_html=True)
+
+    # Botón directo y accesible de reintento de la consulta fallida
+    col_reintento, col_espacio = st.columns([1.8, 3.2])
+    with col_reintento:
+        if st.button("🔄 Reintentar Consulta", key=f"btn_retry_{key_prefix}", type="primary", use_container_width=True):
+            # Obtener la última pregunta del usuario en la sesión
+            pregunta_guardada = None
+            for m in reversed(st.session_state.get("chat_messages", [])):
+                if m.get("role") == "user" and m.get("content"):
+                    pregunta_guardada = m["content"]
+                    break
+            
+            if pregunta_guardada:
+                st.session_state.pregunta_reintento = pregunta_guardada
+                # Eliminar el turno de error anterior para reejecutar limpiamente
+                if st.session_state.get("chat_messages") and "error_diag" in st.session_state.chat_messages[-1]:
+                    st.session_state.chat_messages.pop()
+                st.rerun()
 
 def resolver_grounding_tools(interlocutor: str, pregunta: str, trace: TraceContext) -> tuple[str, list[str]]:
     """Ejecuta y traza las herramientas oficiales de los ministros según el contexto."""
@@ -699,12 +718,15 @@ with tab1:
                 with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=False):
                     render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', idx)}")
 
-    pregunta_usuario = st.chat_input("Escribe tu pregunta para el gobierno...")
+    pregunta_input = st.chat_input("Escribe tu pregunta para el gobierno...")
+    pregunta_reintento = st.session_state.pop("pregunta_reintento", None)
+    pregunta_usuario = pregunta_input or pregunta_reintento
     
     if pregunta_usuario:
-        st.session_state.chat_messages.append({"role": "user", "content": pregunta_usuario})
-        with st.chat_message("user", avatar="🧑‍💻"):
-            st.markdown(pregunta_usuario)
+        if not st.session_state.chat_messages or st.session_state.chat_messages[-1].get("content") != pregunta_usuario:
+            st.session_state.chat_messages.append({"role": "user", "content": pregunta_usuario})
+            with st.chat_message("user", avatar="🧑‍💻"):
+                st.markdown(pregunta_usuario)
             
         with st.chat_message("assistant", avatar="🏛️"):
             with st.spinner(f"{nombre_agente} analizando la cuestión y orquestando herramientas..."):
@@ -764,8 +786,9 @@ MENSAJE DEL CIUDADANO:
 """
                 modelo_activo = os.getenv("MODEL_NAME", "gemini-3.6-flash")
                 t0 = time.perf_counter()
-                ts_inicio = datetime.now().strftime("%H:%M:%S")
-                fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                hora_esp = obtener_hora_espana()
+                ts_inicio = hora_esp.strftime("%H:%M:%S")
+                fecha_completa = hora_esp.strftime("%d/%m/%Y %H:%M:%S")
 
                 # 2. Span de Inferencia LLM con Presupuesto de Tokens y Optimización de Pensamiento
                 response, error_diag = None, None
@@ -1018,7 +1041,7 @@ with tab3:
                 nueva_op = {
                     "autor": autor_opinion.strip() if autor_opinion.strip() else "Ciudadano Anónimo",
                     "mensaje": mensaje_opinion.strip(),
-                    "fecha": datetime.now().strftime("%d/%m/%Y %H:%M")
+                    "fecha": obtener_hora_espana().strftime("%d/%m/%Y %H:%M")
                 }
                 agregar_opinion(nueva_op)
                 st.success("¡Opinión registrada con éxito!")
