@@ -1,0 +1,58 @@
+name: CI - Integración Continua
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint-and-test:
+    name: Pruebas Unitarias y Calidad de Código
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Verificación de sintaxis y linter (Ruff)
+        run: |
+          # Chequeo de sintaxis y estilo sin bloquear por advertencias cosméticas
+          ruff check . --ignore E501
+
+      - name: Ejecutar pruebas unitarias (Pytest)
+        run: |
+          pytest tests/ -v
+
+  docker-dry-run:
+    name: Verificación de Contenedor Docker
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir imagen Docker (Prueba de integridad)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: tecnocracia-app:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

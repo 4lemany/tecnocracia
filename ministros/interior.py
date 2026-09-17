@@ -48,3 +48,5 @@ ministro_interior = Agent(
     instruction=SYSTEM_INSTRUCTION,
     tools=[obtener_datos_criminalidad_interior, obtener_datos_aemet_emergencias, obtener_datos_dgt_trafico]
 )
+
+INSTRUCCION_INTERIOR = SYSTEM_INSTRUCTION

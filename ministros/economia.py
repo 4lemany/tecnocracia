@@ -100,3 +100,5 @@ ministro_economia = Agent(
     instruction=SYSTEM_INSTRUCTION,
     tools=[obtener_datos_ine, obtener_datos_banco_espana, consultar_boe_legislacion_fiscal]
 )
+
+INSTRUCCION_ECONOMIA = SYSTEM_INSTRUCTION

@@ -1,0 +1,64 @@
+# Pipeline nativo de Google Cloud Build para Tecnocracia
+# Incluido en el Always Free Tier de GCP (120 minutos de compilación gratuitos cada día)
+
+steps:
+  # Paso 1: Ejecutar pruebas unitarias en contenedor ligero
+  - name: 'python:3.12-slim'
+    id: 'unit-tests'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+        pytest tests/ -v
+
+  # Paso 2: Construir la imagen Docker usando Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:$COMMIT_SHA'
+      - '-t'
+      - '$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:latest'
+      - '.'
+
+  # Paso 3: Subir la imagen construida al repositorio
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:$COMMIT_SHA'
+
+  # Paso 4: Desplegar a Cloud Run con Scale-to-Zero garantizado (0,00€ de coste)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-cloud-run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE'
+      - '--image=$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:$COMMIT_SHA'
+      - '--region=$_REGION'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--min-instances=0'
+      - '--max-instances=1'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--port=8080'
+      - '--quiet'
+
+substitutions:
+  _GAR_LOCATION: 'europe-west1'
+  _REPOSITORY: 'tecnocracia-repo'
+  _SERVICE: 'tecnocracia-app'
+  _REGION: 'europe-west1'
+
+images:
+  - '$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:$COMMIT_SHA'
+  - '$_GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_STANDARD_2'

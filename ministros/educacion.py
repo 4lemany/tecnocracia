@@ -56,3 +56,5 @@ ministro_educacion = Agent(
     instruction=SYSTEM_INSTRUCTION,
     tools=[obtener_datos_educacion_espana, obtener_datos_eurostat_educacion, obtener_datos_universidades_siiu]
 )
+
+INSTRUCCION_EDUCACION = SYSTEM_INSTRUCTION

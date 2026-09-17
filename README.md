@@ -44,3 +44,15 @@ Abre [`primer_ministro/test_prime_minister.ipynb`](file:///c:/Users/adri/Desktop
 * **Ministro de Economía:** Optimización presupuestaria, análisis de ROI, sostenibilidad fiscal y atracción de inversiones.
 * **Ministro de Educación:** Formación de capital humano, competencias STEM, I+D y pedagogía basada en evidencia.
 * **Ministro de Interior:** Seguridad predictiva, digitalización radical y eficiencia de infraestructuras cívicas.
+
+---
+
+## ☁️ CI/CD y Despliegue en Google Cloud (Always Free Tier / Coste Cero)
+
+El proyecto cuenta con una infraestructura completa de integración y entrega continua configurada para operar estrictamente dentro del **tramo gratuito perpetuo (0,00 €)** de Google Cloud y GitHub Actions:
+
+* **Integración Continua (CI):** [.github/workflows/ci.yml](file:///.github/workflows/ci.yml) ejecuta automáticamente linter, pruebas unitarias (`pytest`) y validación del contenedor Docker en cada push o pull request.
+* **Despliegue Continuo (CD):** [.github/workflows/cd-cloud-run.yml](file:///.github/workflows/cd-cloud-run.yml) compila y despliega la aplicación en **Google Cloud Run** con escala a cero (`--min-instances 0`) y límite de seguridad (`--max-instances 1`).
+* **Cloud Build Nativo:** [cloudbuild.yaml](file:///cloudbuild.yaml) para compilar y desplegar usando los 120 minutos diarios gratuitos de GCP.
+* **Microservicio Serverless:** [cloud_functions/consultar_gabinete/](file:///cloud_functions/consultar_gabinete/) función HTTP Cloud Function Gen 2 para consultas API directas al gabinete.
+* **Guía Completa de Configuración:** Consulta [docs/GCP_FREE_TIER_SETUP.md](file:///docs/GCP_FREE_TIER_SETUP.md) para los pasos de configuración y activación de la alerta de presupuesto de 0€.
