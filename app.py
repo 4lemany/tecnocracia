@@ -95,44 +95,69 @@ st.markdown("""
         hyphens: auto;
     }
     
-    .stMetric {
-        background: linear-gradient(135deg, rgba(26, 34, 52, 0.8), rgba(15, 23, 42, 0.8));
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    /* Estilos de Métricas con Contraste Elevado (Garantiza lectura en Tema Claro y Oscuro) */
+    [data-testid="stMetric"], .stMetric {
+        background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
+        padding: 14px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
     }
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *, .stMetric label {
+        color: #38bdf8 !important; /* Azul cian vivo y muy nítido */
+        font-weight: 700 !important;
+        font-size: 0.9em !important;
+    }
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] *, .stMetric [data-testid="stMetricValue"] {
+        color: #ffffff !important; /* Blanco puro */
+        font-weight: 800 !important;
+        font-size: 1.6rem !important;
+    }
+    [data-testid="stMetricDelta"], [data-testid="stMetricDelta"] * {
+        color: #94a3b8 !important;
+    }
+
     .opinion-card {
-        background: rgba(30, 41, 59, 0.6);
-        border-left: 4px solid #3b82f6;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
+        background: #1e293b !important;
+        border-left: 5px solid #3b82f6 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        padding: 14px !important;
+        margin-bottom: 12px !important;
+        color: #ffffff !important;
     }
+    .opinion-card strong {
+        color: #38bdf8 !important;
+    }
+    .opinion-card p {
+        color: #f1f5f9 !important;
+    }
+
     .adk-eval-card {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(59, 130, 246, 0.3);
-        border-radius: 10px;
-        padding: 14px;
-        margin-top: 10px;
+        background: #0f172a !important;
+        border: 1px solid #3b82f6 !important;
+        border-radius: 10px !important;
+        padding: 16px !important;
+        margin-top: 10px !important;
+        color: #ffffff !important;
     }
     .trace-pill {
         display: inline-block;
-        padding: 3px 8px;
+        padding: 4px 10px;
         border-radius: 9999px;
-        font-size: 0.75em;
-        font-weight: 600;
-        margin-right: 4px;
-        margin-bottom: 4px;
+        font-size: 0.8em;
+        font-weight: 700;
+        margin-right: 6px;
+        margin-bottom: 6px;
         white-space: normal;
     }
-    .pill-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .pill-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
-    .badge-eco { background-color: #065f46; color: #6ee7b7; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-edu { background-color: #1e40af; color: #93c5fd; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-int { background-color: #831843; color: #f472b6; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
-    .badge-pm  { background-color: #78350f; color: #fde68a; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .pill-blue { background-color: #1e3a8a !important; color: #bfdbfe !important; border: 1px solid #3b82f6 !important; }
+    .pill-green { background-color: #064e3b !important; color: #a7f3d0 !important; border: 1px solid #10b981 !important; }
+    .pill-amber { background-color: #78350f !important; color: #fde68a !important; border: 1px solid #f59e0b !important; }
+    .badge-eco { background-color: #064e3b; color: #6ee7b7; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-edu { background-color: #1e3a8a; color: #93c5fd; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-int { background-color: #831843; color: #f472b6; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
+    .badge-pm  { background-color: #78350f; color: #fde68a; padding: 4px 10px; border-radius: 6px; font-weight: bold; display: inline-block; margin-bottom: 6px; }
 
     @media (max-width: 768px) {
         .main .block-container {

@@ -40,11 +40,32 @@ def _init_firestore():
 
     try:
         from google.cloud import firestore
-        if PROJECT_ID:
-            _firestore_client = firestore.Client(project=PROJECT_ID)
+        project_id = PROJECT_ID
+        creds = None
+
+        # Soporte para credenciales en Streamlit Cloud Secrets (st.secrets)
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                if not project_id:
+                    project_id = st.secrets.get("GCP_PROJECT_ID") or st.secrets.get("gcp_project_id") or st.secrets.get("FIREBASE_PROJECT_ID")
+                if "gcp_service_account" in st.secrets:
+                    from google.oauth2 import service_account
+                    sa_info = dict(st.secrets["gcp_service_account"])
+                    creds = service_account.Credentials.from_service_account_info(sa_info)
+                    if not project_id and "project_id" in sa_info:
+                        project_id = sa_info["project_id"]
+        except Exception:
+            pass
+
+        if creds:
+            _firestore_client = firestore.Client(project=project_id, credentials=creds)
+        elif project_id:
+            _firestore_client = firestore.Client(project=project_id)
         else:
             _firestore_client = firestore.Client()
-        logger.info("Conexión con Google Cloud Firestore inicializada con éxito.")
+
+        logger.info(f"Conexión con Google Cloud Firestore inicializada con éxito (Proyecto: {project_id or 'default'}).")
         return _firestore_client
     except Exception as e:
         logger.warning(f"No se pudo conectar a Google Cloud Firestore ({e}). Usando persistencia local JSON.")
