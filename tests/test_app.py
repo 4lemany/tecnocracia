@@ -158,6 +158,42 @@ class TestAppLogic(unittest.TestCase):
             self.assertEqual(resp.provider, "groq")
             self.assertTrue(resp.es_failover)
 
+    def test_fallback_groq_to_gemini_when_groq_fails(self):
+        """Valida la estrategia inversa: Groq como primario con fallback a Gemini si Groq falla."""
+        from unittest.mock import patch, MagicMock
+        from app import generar_con_reintento
+
+        # Groq falla con 500
+        fake_groq_error = MagicMock()
+        fake_groq_error.status_code = 500
+        fake_groq_error.json.return_value = {"error": {"message": "Groq service temporary error"}}
+
+        # Gemini responde con éxito
+        mock_gemini_resp = MagicMock()
+        mock_gemini_resp.text = "Respuesta de respaldo servida por Google Gemini"
+        mock_gemini_resp.usage_metadata = MagicMock()
+        mock_gemini_resp.usage_metadata.prompt_token_count = 35
+        mock_gemini_resp.usage_metadata.candidates_token_count = 55
+        mock_gemini_resp.candidates = []
+
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_gemini_resp
+
+        with patch("requests.post", return_value=fake_groq_error):
+            resp, diag = generar_con_reintento(
+                client=mock_client,
+                contents="Pregunta de contingencia",
+                groq_key="gsk_failing_key",
+                proveedor_preferido="groq",
+                max_intentos=1
+            )
+            self.assertIsNone(diag)
+            self.assertIsNotNone(resp)
+            self.assertEqual(resp.text, "Respuesta de respaldo servida por Google Gemini")
+            self.assertEqual(resp.provider, "gemini")
+            self.assertTrue(resp.es_failover)
+            self.assertEqual(resp.failover_desde, "groq")
+
 
 if __name__ == "__main__":
     unittest.main()

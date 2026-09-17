@@ -247,13 +247,23 @@ class GroqUsageMetadata:
         self.candidates_token_count = candidates_tokens
 
 
-class GroqResponseWrapper:
-    def __init__(self, text: str, prompt_tokens: int, candidates_tokens: int, model: str = "llama-3.3-70b-versatile", failover: bool = False):
+class UnifiedLLMResponse:
+    """Objeto de respuesta unificado desacoplado de SDKs específicos."""
+    def __init__(
+        self,
+        text: str,
+        provider: str,
+        model: str,
+        usage_metadata=None,
+        es_failover: bool = False,
+        failover_desde: str = ""
+    ):
         self.text = text
-        self.provider = "groq"
+        self.provider = provider
         self.model = model
-        self.es_failover = failover
-        self.usage_metadata = GroqUsageMetadata(prompt_tokens, candidates_tokens)
+        self.usage_metadata = usage_metadata
+        self.es_failover = es_failover
+        self.failover_desde = failover_desde
 
 
 def generar_con_groq(prompt_texto: str, groq_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 1500, failover: bool = False) -> tuple[Any, Optional[dict]]:
@@ -286,7 +296,14 @@ def generar_con_groq(prompt_texto: str, groq_key: str, model: str = "llama-3.3-7
             usage = data.get("usage", {})
             t_in = usage.get("prompt_tokens", 0)
             t_out = usage.get("completion_tokens", 0)
-            return GroqResponseWrapper(content, t_in, t_out, model=model, failover=failover), None
+            return UnifiedLLMResponse(
+                text=content,
+                provider="groq",
+                model=model,
+                usage_metadata=GroqUsageMetadata(t_in, t_out),
+                es_failover=failover,
+                failover_desde="gemini" if failover else ""
+            ), None
         else:
             try:
                 err_data = resp.json()
@@ -311,21 +328,25 @@ def generar_con_reintento(
     max_tokens=1500
 ):
     """
-    Invoca a Google Gemini o Groq con política de reintentos, failover automático y observabilidad:
-    1. Si el usuario selecciona Groq de forma prioritaria, ejecuta Groq LPU (Llama 3.3 70B).
-    2. Si usa Gemini (o modo Auto): ejecuta Gemini con backoff.
-    3. Si Gemini devuelve 429 RESOURCE_EXHAUSTED (15 RPM) o 503 UNAVAILABLE:
-       - Si existe gemini_key_2: conmuta a la clave secundaria de Gemini.
-       - Si existe groq_key: failover transparente a Groq Cloud sin interrumpir al usuario.
-       - Si no hay claves secundarias: pausa con backoff exponencial.
+    Invoca inferencia con estrategia de alta disponibilidad (Groq Primario -> Gemini Fallback):
+    1. Si el usuario prefiere Groq (o por defecto si existe GROQ_API_KEY):
+       - Ejecuta Groq LPU (Llama 3.3 70B, 30 RPM, velocidad ~1s).
+       - Si Groq experimenta algún fallo o rate limit, salta automáticamente a Google Gemini como fallback.
+    2. Si el usuario prefiere Gemini:
+       - Ejecuta Google Gemini. Si da 429 o 503, salta a la clave 2 de Gemini o a Groq LPU.
     """
-    # Preferencia explícita por Groq
+    fallback_from_groq = False
+
+    # Estrategia 1: Groq como motor prioritario con Fallback a Gemini
     if proveedor_preferido == "groq" and groq_key:
         resp_groq, err_groq = generar_con_groq(contents, groq_key, max_tokens=max_tokens, failover=False)
         if resp_groq:
             return resp_groq, None
+        
+        # Si Groq falla (ej. sobrecarga, rate limit o timeout), conmutamos a Gemini
         if client:
-            st.toast("⚠️ Groq temporalmente indispuesto. Conmutando a Google Gemini...", icon="🔄")
+            st.toast("⚠️ Groq temporalmente indispuesto. Conmutando de emergencia a Google Gemini...", icon="🔄")
+            fallback_from_groq = True
         else:
             return None, err_groq
 
@@ -338,13 +359,13 @@ def generar_con_reintento(
                 raise Exception("API_KEY_INVALID: GEMINI_API_KEY no configurada.")
 
             if config is not None:
-                response = client.models.generate_content(model=model, contents=contents, config=config)
+                raw_response = client.models.generate_content(model=model, contents=contents, config=config)
             else:
-                response = client.models.generate_content(model=model, contents=contents)
+                raw_response = client.models.generate_content(model=model, contents=contents)
 
             # Verificar si fue bloqueado por filtros de moderación en candidates
-            if hasattr(response, "candidates") and response.candidates:
-                cand = response.candidates[0]
+            if hasattr(raw_response, "candidates") and raw_response.candidates:
+                cand = raw_response.candidates[0]
                 finish_reason = getattr(cand, "finish_reason", None)
                 finish_str = str(finish_reason).upper() if finish_reason else ""
                 if any(k in finish_str for k in ["SAFETY", "BLOCK", "RECITATION"]):
@@ -353,12 +374,19 @@ def generar_con_reintento(
 
             # Verificar acceso a texto sin generar excepción
             try:
-                _ = response.text
+                resp_text = raw_response.text
             except Exception as e_text:
                 diag = diagnosticar_error_gemini(e_text)
                 return None, diag
 
-            return response, None
+            return UnifiedLLMResponse(
+                text=resp_text,
+                provider="gemini",
+                model=model,
+                usage_metadata=getattr(raw_response, "usage_metadata", None),
+                es_failover=fallback_from_groq,
+                failover_desde="groq" if fallback_from_groq else ""
+            ), None
 
         except Exception as e:
             ultimo_error = e
@@ -377,12 +405,19 @@ def generar_con_reintento(
                     else:
                         resp_sec = client_sec.models.generate_content(model=model, contents=contents)
                     if getattr(resp_sec, "text", None):
-                        return resp_sec, None
+                        return UnifiedLLMResponse(
+                            text=resp_sec.text,
+                            provider="gemini",
+                            model=model,
+                            usage_metadata=getattr(resp_sec, "usage_metadata", None),
+                            es_failover=True,
+                            failover_desde="gemini_clave_1"
+                        ), None
                 except Exception as e_sec:
                     ultimo_error = e_sec
 
-            # Failover Nivel 2: Groq LPU Automático e Instantáneo (30 RPM, 0€)
-            if es_transitorio and groq_key:
+            # Failover Nivel 2: Groq LPU Automático e Instantáneo (30 RPM, 0€) si Gemini falló
+            if es_transitorio and groq_key and not fallback_from_groq:
                 st.toast("🚀 Límite de Gemini alcanzado. Conmutando a Groq LPU (Llama 3.3 70B)...", icon="🚀")
                 resp_groq, err_groq = generar_con_groq(contents, groq_key, max_tokens=max_tokens, failover=True)
                 if resp_groq:
@@ -738,28 +773,31 @@ with st.sidebar:
     # Configuración de Redundancia y Alternativas Gratuitas (Groq / Multi-Key)
     with st.expander("🛡️ Redundancia & Failover Gratuito (Groq / Clave 2)", expanded=False):
         st.markdown("**Evita el límite de 15 RPM sin pagar nada:**")
+        groq_actual = get_groq_api_key()
+        estado_groq = "🟢 Vinculada (Activa)" if groq_actual else "⚪ No configurada"
+
         motor_opciones = [
-            "⚡ Auto / Híbrido (Gemini con Failover a Groq)",
-            "🚀 Groq Cloud (LPU Llama 3.3 70B - 30 RPM)",
-            "💎 Google Gemini (gemini-3.6-flash)"
+            "🚀 Groq Prioritario (LPU Llama 3.3 70B con Fallback a Gemini)",
+            "⚡ Gemini Prioritario (gemini-3.6-flash con Fallback a Groq)",
+            "💎 Solo Google Gemini (Sin Groq)"
         ]
-        idx_default = 0
+        idx_default = 0 if groq_actual else 1
         motor_actual_sesion = st.session_state.get("motor_ia_preferido", "")
-        if "Groq" in motor_actual_sesion and "Auto" not in motor_actual_sesion:
+        if "Gemini Prioritario" in motor_actual_sesion:
             idx_default = 1
-        elif "Gemini" in motor_actual_sesion and "Auto" not in motor_actual_sesion:
+        elif "Solo Google" in motor_actual_sesion:
             idx_default = 2
+        elif "Groq Prioritario" in motor_actual_sesion:
+            idx_default = 0
 
         motor_sel = st.selectbox(
-            "Motor preferido:",
+            "Estrategia de inferencia:",
             motor_opciones,
             index=idx_default,
             key="sb_motor_ia_select"
         )
         st.session_state.motor_ia_preferido = motor_sel
 
-        groq_actual = get_groq_api_key()
-        estado_groq = "🟢 Vinculada" if groq_actual else "⚪ No configurada"
         st.markdown(f"**Groq LPU (30 RPM):** `{estado_groq}`")
         if not groq_actual:
             st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
@@ -932,9 +970,14 @@ with tab1:
     for idx, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"], avatar="🧑‍💻" if msg["role"] == "user" else "🏛️"):
             if msg.get("es_failover"):
-                st.caption("🚀 *Respuesta servida mediante failover automático a Groq LPU (Llama 3.3 70B)*")
+                if msg.get("failover_desde") == "groq":
+                    st.caption("🔄 *Respuesta servida mediante fallback a Google Gemini*")
+                else:
+                    st.caption("🚀 *Respuesta servida mediante failover a Groq LPU (Llama 3.3 70B)*")
             elif msg.get("provider") == "groq":
                 st.caption("🚀 *Inferencia Groq Cloud LPU (Llama 3.3 70B)*")
+            elif msg.get("provider") == "gemini":
+                st.caption("⚡ *Inferencia Google Gemini*")
             if msg.get("content"):
                 st.markdown(msg["content"])
             if "error_diag" in msg:
@@ -961,8 +1004,11 @@ with tab1:
                 groq_key_activa = get_groq_api_key()
                 gemini_2_activa = get_secondary_gemini_api_key()
 
-                motor_pref_sel = st.session_state.get("motor_ia_preferido", "Auto")
-                proveedor_pref = "groq" if "Groq" in motor_pref_sel and "Auto" not in motor_pref_sel else "gemini"
+                motor_pref_sel = st.session_state.get(
+                    "motor_ia_preferido",
+                    "🚀 Groq Prioritario" if groq_key_activa else "⚡ Gemini Prioritario"
+                )
+                proveedor_pref = "groq" if "Groq Prioritario" in motor_pref_sel and groq_key_activa else "gemini"
 
                 if not api_key_activa and not groq_key_activa:
                     st.error("Configura tu GEMINI_API_KEY o tu clave gratuita de Groq (GROQ_API_KEY) en el panel lateral.")
@@ -1115,11 +1161,16 @@ MENSAJE DEL CIUDADANO:
                     trace_dict["timestamp"] = ts_inicio
                     trace_dict["duracion"] = duracion
 
-                    # Aviso informativo si se activó failover automático a Groq
+                    # Aviso informativo según el proveedor y si hubo failover
                     if getattr(response, "es_failover", False):
-                        st.info("🚀 **Failover Automático Activo:** Debido a la saturación transitoria de cuota de Google Gemini (15 RPM), esta consulta se resolvió instantáneamente mediante **Groq LPU (Llama 3.3 70B)** sin interrupciones ni coste.")
+                        if getattr(response, "failover_desde", "") == "groq":
+                            st.warning("⚠️ **Fallback a Google Gemini Activo:** Groq experimentó una demora puntual. La consulta se resolvió automáticamente con **Google Gemini** sin interrupciones.")
+                        else:
+                            st.info("🚀 **Failover a Groq LPU Activo:** Debido a la cuota de 15 RPM de Google Gemini, esta consulta se resolvió instantáneamente mediante **Groq LPU (Llama 3.3 70B)** sin coste.")
                     elif getattr(response, "provider", "gemini") == "groq":
-                        st.caption("🚀 *Inferencia ejecutada en Groq Cloud LPU (Llama 3.3 70B - 30 RPM / 0,00 €)*")
+                        st.caption("🚀 *Inferencia ultra-rápida servida por Groq Cloud LPU (Llama 3.3 70B - 30 RPM / 0,00 €)*")
+                    else:
+                        st.caption("⚡ *Inferencia servida por Google Gemini (3.6 Flash)*")
 
                     st.markdown(response.text)
 
@@ -1131,6 +1182,7 @@ MENSAJE DEL CIUDADANO:
                         "content": response.text,
                         "trace": trace_dict,
                         "es_failover": getattr(response, "es_failover", False),
+                        "failover_desde": getattr(response, "failover_desde", ""),
                         "provider": getattr(response, "provider", "gemini")
                     })
 
