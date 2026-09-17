@@ -28,7 +28,7 @@ except ImportError:
     pass
 
 # Cargar API Key (Soporta Google Secret Manager, .env local y st.secrets)
-from secrets_manager import get_gemini_api_key, get_secrets_backend_info
+from services.secrets_manager import get_gemini_api_key, get_secrets_backend_info
 api_key = get_gemini_api_key()
 
 from google import genai
@@ -38,7 +38,7 @@ from ministros.educacion import INSTRUCCION_EDUCACION
 from ministros.interior import INSTRUCCION_INTERIOR
 
 # Persistencia Híbrida Gestionada (Google Cloud Firestore + Fallback Local)
-from storage import (
+from services.storage import (
     cargar_datos_comunidad,
     agregar_conversacion_al_historial,
     registrar_voto,
@@ -48,7 +48,7 @@ from storage import (
 )
 
 # Motor de Evaluación de Agentes Google ADK
-from evaluacion import evaluar_respuesta_adk
+from services.evaluacion import evaluar_respuesta_adk
 
 if "datos_comunidad" not in st.session_state:
     st.session_state.datos_comunidad = cargar_datos_comunidad()

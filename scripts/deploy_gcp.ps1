@@ -18,6 +18,9 @@ Write-Host "============================================================" -Foreg
 Write-Host "  🏛️ DESPLIEGUE DE TECNOCRACIA EN GOOGLE CLOUD RUN" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
+$ScriptDir = $PSScriptRoot
+$RepoRoot = Split-Path -Parent $ScriptDir
+
 # 1. Parámetros de Configuración
 if (-not $ProjectId) {
     $ProjectId = Read-Host "👉 Introduce tu Google Cloud PROJECT_ID"
@@ -104,7 +107,7 @@ gcloud secrets add-iam-policy-binding GEMINI_API_KEY `
 # 7. Compilar y Desplegar en Google Cloud Run
 Write-Host "⏳ [6/6] Compilando imagen y desplegando en Google Cloud Run (Escalado a Cero)..." -ForegroundColor Gray
 gcloud run deploy "$ServiceName" `
-    --source . `
+    --source "$RepoRoot" `
     --project "$ProjectId" `
     --region "$Region" `
     --platform managed `

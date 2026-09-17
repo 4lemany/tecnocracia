@@ -2,8 +2,8 @@
 Tests unitarios para la lógica interna de app.py (Evaluación ADK y gestión de datos).
 """
 import unittest
-from evaluacion import evaluar_respuesta_adk
-from storage import cargar_datos_comunidad
+from services.evaluacion import evaluar_respuesta_adk
+from services.storage import cargar_datos_comunidad
 
 
 class TestAppLogic(unittest.TestCase):

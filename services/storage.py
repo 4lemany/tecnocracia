@@ -15,7 +15,8 @@ from typing import Dict, Any
 
 logger = logging.getLogger("tecnocracia.storage")
 
-RUTA_COMUNIDAD_LOCAL = Path("datos_comunidad.json")
+ROOT_DIR = Path(__file__).resolve().parent.parent
+RUTA_COMUNIDAD_LOCAL = ROOT_DIR / "data" / "datos_comunidad.json"
 FILE_LOCK = threading.Lock()
 
 # Detectar configuración de Google Cloud Firestore
@@ -82,6 +83,7 @@ def _cargar_datos_local() -> Dict[str, Any]:
         }
         if not RUTA_COMUNIDAD_LOCAL.exists():
             try:
+                RUTA_COMUNIDAD_LOCAL.parent.mkdir(parents=True, exist_ok=True)
                 with open(RUTA_COMUNIDAD_LOCAL, "w", encoding="utf-8") as f:
                     json.dump(datos_default, f, ensure_ascii=False, indent=2)
             except Exception:
@@ -104,6 +106,7 @@ def _cargar_datos_local() -> Dict[str, Any]:
 def _guardar_datos_local(datos: Dict[str, Any]) -> None:
     with FILE_LOCK:
         try:
+            RUTA_COMUNIDAD_LOCAL.parent.mkdir(parents=True, exist_ok=True)
             with open(RUTA_COMUNIDAD_LOCAL, "w", encoding="utf-8") as f:
                 json.dump(datos, f, ensure_ascii=False, indent=2)
         except Exception as e:

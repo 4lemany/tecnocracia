@@ -53,7 +53,7 @@ class TestTecnocracia(unittest.TestCase):
 
     def test_storage_hybrid_fallback(self):
         """Valida que la capa de persistencia funcione correctamente en modo local."""
-        import storage
+        from services import storage
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_json = Path(tmp_dir) / "test_datos_comunidad.json"
@@ -110,7 +110,7 @@ class TestTecnocracia(unittest.TestCase):
 
     def test_secrets_manager_fallback(self):
         """Valida la recuperación de secretos con fallback local."""
-        import secrets_manager
+        from services import secrets_manager
 
         os.environ["GEMINI_API_KEY"] = "test-api-key-12345"
         secrets_manager._CACHE_SECRETS.clear()

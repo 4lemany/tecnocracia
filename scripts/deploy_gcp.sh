@@ -10,6 +10,9 @@ echo "============================================================"
 echo "  🏛️ DESPLIEGUE DE TECNOCRACIA EN GOOGLE CLOUD RUN"
 echo "============================================================"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # 1. Parámetros de Configuración
 PROJECT_ID="${1:-$GCP_PROJECT_ID}"
 REGION="${2:-europe-west1}"
@@ -94,7 +97,7 @@ gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
 # 7. Compilar y Desplegar en Google Cloud Run
 echo "⏳ [6/6] Compilando imagen y desplegando en Google Cloud Run (Escalado a Cero)..."
 gcloud run deploy "$SERVICE_NAME" \
-    --source . \
+    --source "$REPO_ROOT" \
     --project "$PROJECT_ID" \
     --region "$REGION" \
     --platform managed \

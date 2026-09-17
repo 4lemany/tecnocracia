@@ -1,149 +1,142 @@
-# 🏛️ Tecnocracia: Partido Político y Gabinete Multiagente
+# 🏛️ Tecnocracia: Gabinete de Gobierno Multiagente
 
-Sistema multiagente desarrollado con **Google ADK** y **Gemini** para modelar un gobierno tecnocrático, donde cada ministro analiza las problemáticas regionales desde su área de especialización y debate mediante datos y métricas contrastables.
+Plataforma de gobernanza basada en **Google Agent Development Kit (ADK)**, **Gemini 2.5**, **Streamlit** y arquitectura *serverless* en **Google Cloud Platform (GCP)** con **coste 0,00 € (Always Free Tier)**.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 📐 Arquitectura del Sistema
+
+```mermaid
+graph TD
+    User["💻 Ciudadano / Usuario"] <--> UI["🖥️ Streamlit UI (app.py)"]
+    
+    subgraph Servicios["⚙️ services/"]
+        Sec["secrets_manager.py<br/>(Secret Manager / .env)"]
+        Store["storage.py<br/>(Firestore / Local JSON)"]
+        Eval["evaluacion.py<br/>(Métricas Calidad ADK)"]
+    end
+
+    subgraph Agentes["🤖 Google ADK & Gemini"]
+        PM["🏛️ Primer Ministro<br/>(Orquestador)"]
+        Econ["📊 Economía<br/>(INE · BdE · BOE)"]
+        Educ["🎓 Educación<br/>(Eurostat · SIIU)"]
+        Int["🛡️ Interior<br/>(AEMET · DGT)"]
+    end
+
+    subgraph Nube["☁️ Google Cloud Platform"]
+        GCR["Google Cloud Run (Escala a 0)"]
+        FS[("Cloud Firestore (Stateless)")]
+        SM[("Secret Manager (GEMINI_API_KEY)")]
+    end
+
+    UI --> Servicios
+    UI --> PM
+    PM --> Econ & Educ & Int
+    Store --> FS
+    Sec --> SM
+```
+
+---
+
+## 📂 Estructura del Repositorio
 
 ```text
 tecnocracia/
 ├── .github/workflows/
-│   ├── ci.yml                     # CI: Linter, tests unitarios y ADK evals
-│   └── cd-cloud-run.yml           # CD: Despliegue continuo a Cloud Run
-├── primer_ministro/
-│   ├── agent.py                   # Agente orquestador (Primer Ministro)
-│   ├── evals_primer_ministro.json # Casos de prueba automatizados
-│   └── test_prime_minister.ipynb  # Notebook interactivo del Consejo de Ministros
-├── ministros/                     # Módulos de subagentes especializados
-│   ├── __init__.py                # Exportación del gabinete
-│   ├── economia.py                # Ministro de Economía y Hacienda (+ APIs INE/BdE/BOE)
-│   ├── educacion.py               # Ministro de Educación y Ciencia (+ APIs Educabase/Eurostat)
-│   └── interior.py                # Ministro de Interior (+ APIs Interior/AEMET/DGT)
-├── tests/
-│   └── test_adk_evals.py          # Batería de pruebas automatizadas
+│   ├── ci.yml                     # CI: Linter, tests unitarios y Docker dry-run
+│   └── cd-cloud-run.yml           # CD: Despliegue continuo a Google Cloud Run
+├── data/
+│   └── datos_comunidad.json       # Persistencia local JSON (autocreado si no existe)
+├── primer_ministro/               # Orquestador del gabinete (Google ADK)
+│   ├── agent.py                   # Agente coordinador y delegación a ministros
+│   ├── eval_set_1.evalset.json    # Evaluaciones multi-turno de fidelidad
+│   ├── evals_primer_ministro.json # Casos de test ADK
+│   └── test_prime_minister.ipynb  # Notebook interactivo de simulación
+├── ministros/                     # Subagentes especializados con Grounding oficial
+│   ├── economia.py                # Ministro de Economía (INE, BdE, BOE)
+│   ├── educacion.py               # Ministra de Educación (Educabase, Eurostat, SIIU)
+│   ├── interior.py                # Ministro de Interior (AEMET, DGT, Interior)
+│   └── aborto.evalset.json        # Dataset de evaluación temática
+├── services/                      # Servicios centrales desacoplados
+│   ├── __init__.py                # Exportación limpia de la API
+│   ├── storage.py                 # Persistencia dual (Cloud Firestore / JSON Local)
+│   ├── secrets_manager.py         # Google Secret Manager y fallback .env
+│   └── evaluacion.py              # Motor de evaluación y scoring ADK
+├── scripts/                       # Automatización y aprovisionamiento
+│   ├── deploy_gcp.sh              # Despliegue en 1 clic (Bash / Linux / macOS)
+│   └── deploy_gcp.ps1             # Despliegue en 1 clic (PowerShell / Windows)
+├── tests/                         # Batería de pruebas automatizadas (100% offline)
+│   ├── test_agents.py             # Estructura y herramientas de ministros
+│   ├── test_app.py                # Pruebas de lógica de app y evaluación
+│   └── test_adk_evals.py          # Validación de datasets y resiliencia
+├── cloud_functions/               # Microservicio serverless (Google Cloud Functions Gen 2)
+│   └── consultar_gabinete/        # Endpoint HTTP con CORS para integración externa
 ├── app.py                         # Aplicación Web Streamlit (UI, Métricas, Trazabilidad)
-├── storage.py                     # Persistencia híbrida (Cloud Firestore + JSON Local)
-├── secrets_manager.py             # Gestión de secretos (Secret Manager + .env)
-├── deploy_gcp.sh                  # Script de despliegue en 1 clic (Bash / Linux / Mac)
-├── deploy_gcp.ps1                 # Script de despliegue en 1 clic (PowerShell / Windows)
-├── Dockerfile                     # Imagen contenedor optimizada para Cloud Run
-├── cloudbuild.yaml                # Pipeline declarativo para Google Cloud Build
-├── requirements.txt               # Dependencias del proyecto
+├── Dockerfile                     # Contenedor optimizado para Cloud Run
+├── cloudbuild.yaml                # Pipeline nativo Google Cloud Build
+├── requirements.txt               # Dependencias unificadas del proyecto
 └── README.md
 ```
 
 ---
 
-## 🚀 Guía de Inicio Rápido: Clonar y Desplegar en Google Cloud
+## 🚀 Despliegue en 1 Clic (Google Cloud Run)
 
-Si acabas de clonar este repositorio, sigue estos pasos para ponerlo en producción en **Google Cloud Run** en cuestión de minutos.
-
-### 1. Requisitos Previos
-
-1. **Google Cloud SDK (`gcloud` CLI)** instalado en tu equipo. ([Descargar gcloud](https://cloud.google.com/sdk/docs/install)).
-2. **Una cuenta de Google Cloud** con un proyecto creado (ej: `mi-proyecto-tecnocracia`).
-3. **Una API Key de Gemini** obtenida gratuitamente en [Google AI Studio](https://aistudio.google.com/).
-4. Haber iniciado sesión en tu terminal con tu cuenta de Google:
-   ```bash
-   gcloud auth login
-   ```
-
----
-
-### 2. Clonar el Repositorio
-
-```bash
-git clone https://github.com/4lemany/tecnocracia.git
-cd tecnocracia
-```
-
----
-
-### 3. Despliegue en 1 Clic (Aprovisionamiento Automático)
-
-Ejecuta el script correspondiente a tu sistema operativo. El script se encargará de:
-* Habilitar todas las APIs de GCP necesarias (`run`, `firestore`, `secretmanager`, `cloudbuild`, `artifactregistry`).
-* Crear la base de datos **Cloud Firestore** en modo Nativo para persistencia *stateless*.
-* Registrar tu **`GEMINI_API_KEY` en Google Secret Manager** de forma cifrada.
-* Configurar la cuenta de servicio con permisos de mínimo privilegio.
-* Compilar el contenedor y desplegarlo en **Cloud Run** con **escalado a cero** ($0 en reposo).
+Los scripts en [`scripts/`](file:///c:/Users/adri/Desktop/tecnocracia/scripts) aprovisionan automáticamente Firestore, Secret Manager, cuentas de servicio IAM y despliegan en **Cloud Run con escalado a cero**.
 
 #### 🪟 En Windows (PowerShell):
 ```powershell
-.\deploy_gcp.ps1 -ProjectId "TU_PROJECT_ID" -Region "europe-west1"
+.\scripts\deploy_gcp.ps1 -ProjectId "TU_PROJECT_ID" -Region "europe-west1"
 ```
-*(Si no pasas los parámetros, el script te los preguntará de forma interactiva).*
 
-#### 🐧 En Linux / macOS / Google Cloud Shell (Bash):
+#### 🐧 En Linux / macOS / Cloud Shell (Bash):
 ```bash
-chmod +x deploy_gcp.sh
-./deploy_gcp.sh TU_PROJECT_ID europe-west1
+chmod +x scripts/deploy_gcp.sh
+./scripts/deploy_gcp.sh TU_PROJECT_ID europe-west1
 ```
-
-Al finalizar, la consola te devolverá la **URL pública HTTPS** lista para compartir.
 
 ---
 
-## 💻 Ejecución Local (Desarrollo)
+## 🛡️ Garantía de Coste Cero (GCP Always Free Tier)
 
-Si deseas probar o modificar la aplicación en tu máquina local antes de desplegar:
+La infraestructura está configurada para mantenerse estrictamente dentro de las cuotas perpetuamente gratuitas de Google Cloud:
 
-### 1. Crear y activar el entorno virtual
+| Servicio | Límite Gratuito Mensual | Configuración en Tecnocracia |
+| :--- | :--- | :--- |
+| **Cloud Run** | 2.000.000 peticiones / 360.000 GB-s | `--min-instances 0` (0 servidores encendidos en reposo = 0,00 €) |
+| **Firestore** | 1 GiB disco · 50.000 lecturas/día | Modo Nativo para votos, buzón ciudadano e historial |
+| **Secret Manager** | 6 versiones activas / 10.000 operaciones | Cifrado seguro de `GEMINI_API_KEY` sin coste |
+| **Cloud Build** | 120 minutos de compilación al día | Construcción de contenedores en despliegues |
+| **GitHub Actions** | 2.000 min/mes (ilimitado en públicos) | CI/CD automático ante cada `push` |
+
+---
+
+## 💻 Ejecución Local y Pruebas
+
 ```bash
-# Windows
+# 1. Crear entorno y activar
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate      # En Windows
+# source .venv/bin/activate # En Linux / macOS
 
-# Linux / macOS
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 2. Instalar dependencias
-```bash
+# 2. Instalar dependencias
 pip install -r requirements.txt
-```
 
-### 3. Configurar variables de entorno
-Crea un archivo `.env` en la raíz copiando el ejemplo:
-```env
-GEMINI_API_KEY="tu_clave_de_gemini_aqui"
-```
+# 3. Configurar API Key en .env
+echo GEMINI_API_KEY="tu_clave_aqui" > .env
 
-### 4. Lanzar la aplicación
-```bash
+# 4. Lanzar la aplicación
 streamlit run app.py
-```
-Abre tu navegador en `http://localhost:8501`. En entorno local, la aplicación conmutará de forma automática y transparente a almacenamiento atómico en `datos_comunidad.json`.
 
-### 5. Ejecutar la batería de pruebas
-```bash
-python tests/test_adk_evals.py
+# 5. Ejecutar la batería de pruebas automatizadas
+python -m unittest discover -s tests -v
 ```
 
 ---
 
-## ⚙️ Configuración de CI/CD en GitHub Actions
+## ⚙️ CI/CD Continuo con GitHub Actions
 
-Si subes este proyecto a tu propio repositorio de GitHub, puedes activar el despliegue continuo automático ante cada `git push` a la rama `main`:
-
-1. Ve a tu repositorio en GitHub: **Settings > Secrets and variables > Actions**.
-2. Añade los siguientes **Repository Secrets**:
-   * `GCP_PROJECT_ID`: El ID de tu proyecto en Google Cloud.
-   * `GEMINI_API_KEY`: Tu clave de API de Gemini.
-   * `GCP_SA_KEY`: La clave en formato JSON de tu Service Account con permisos de despliegue en Cloud Run (puedes generarla con `gcloud iam service-accounts keys create`).
-   * *(Opcional)* `GCP_REGION`: Región de despliegue (por defecto: `europe-west1`).
-
-Con esto configurado, cada vez que hagas `git push` a `main`:
-1. El workflow [`.github/workflows/ci.yml`](file:///.github/workflows/ci.yml) ejecutará los linters y la batería de tests.
-2. Si los tests pasan, [`.github/workflows/cd-cloud-run.yml`](file:///.github/workflows/cd-cloud-run.yml) compilará la imagen y actualizará el servicio en Google Cloud Run sin caídas de servicio.
-
----
-
-## 🤖 Roles de los Agentes
-
-* **Prime Minister (Supervisor):** Coordina el gabinete, plantea los problemas regionales, arbitra los debates entre ministros y emite el dictamen final junto con el comunicado público.
-* **Ministro de Economía:** Optimización presupuestaria, análisis de ROI, sostenibilidad fiscal y atracción de inversiones (con herramientas en tiempo real del INE, Banco de España y BOE).
-* **Ministro de Educación:** Formación de capital humano, competencias STEM, I+D y pedagogía basada en evidencia (con herramientas de Educabase, Eurostat y SIIU).
-* **Ministro de Interior:** Seguridad predictiva, digitalización radical y eficiencia de infraestructuras cívicas (con herramientas de Interior, AEMET y DGT).
+Para que GitHub Actions despliegue automáticamente en cada `git push`:
+1. Ve a **Settings > Secrets and variables > Actions** en tu repositorio de GitHub.
+2. Añade `GCP_PROJECT_ID`, `GEMINI_API_KEY` y `GCP_SA_KEY` (clave JSON de la Service Account).
+3. Cada commit ejecutará linter, pruebas y construirá el contenedor sin tiempo de inactividad.

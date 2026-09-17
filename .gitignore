@@ -37,3 +37,9 @@ build/
 .vscode/*
 !.vscode/settings.json
 .idea/
+
+# Temporales y scripts auxiliares
+*.tmp
+reorganize.py
+cleanup_temp.py
+ci_debug.txt

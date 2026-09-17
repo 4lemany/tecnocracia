@@ -8,9 +8,9 @@ __pycache__/
 .env
 .env.*
 .vscode/
-.devcontainer/
 .adk/
 tests/
+scripts/
 .pytest_cache/
 *.ipynb
 README.md
