@@ -152,14 +152,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
-def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=None, max_intentos=4):
+def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=None, max_intentos=3):
     """
     Invoca a Google Gemini con política de reintentos exponenciales, control de tokens y degradación elegante.
     Retorna (response, None) en caso de éxito, o (None, error_diag) si se agotan los reintentos
     o se detectan bloqueos de seguridad / cuotas, impidiendo que Streamlit falle con pantalla roja.
     """
     ultimo_error = None
-    backoff_tiempos = [2, 4, 7, 10]
+    backoff_tiempos = [2, 4]
 
     for intento in range(max_intentos):
         try:
@@ -192,12 +192,12 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=Non
             es_transitorio = any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE"])
 
             if es_transitorio and intento < max_intentos - 1:
-                espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 8
-                st.toast(f"⏳ El servidor de Gemini está saturado. Reintento automático en {espera}s ({intento+1}/{max_intentos})...", icon="⏳")
+                espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 4
+                st.toast(f"⏳ Servidores de Google con alta demanda. Reintentando ({intento+1}/{max_intentos})...", icon="⏳")
                 time.sleep(espera)
                 continue
             elif intento < max_intentos - 1 and "SAFETY" not in err_msg and "API_KEY" not in err_msg:
-                time.sleep(2)
+                time.sleep(1.5)
                 continue
             else:
                 break
@@ -209,8 +209,8 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=Non
 
 def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
     """
-    Renderiza una tarjeta visual premium de explicabilidad cuando ocurre una incidencia
-    en la infraestructura de Google GenAI (429 Rate Limits, 503 Overload, Safety Blocks, etc.).
+    Renderiza una tarjeta visual premium de explicabilidad con contraste ultra nítido
+    compatible con tema claro y oscuro (WCAG AAA).
     """
     icono = error_diag.get("icono", "⚠️")
     titulo = error_diag.get("titulo", "Incidencia en el Servicio de Inferencia")
@@ -221,21 +221,23 @@ def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
     detalle = error_diag.get("detalle_tecnico", "")
 
     st.markdown(f"""
-    <div style='background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 5px solid {color}; border-radius: 10px; padding: 16px; margin: 12px 0;'>
-        <div style='display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px;'>
-            <span style='font-size: 1.05em; font-weight: 700; color: #f8fafc;'>{icono} {titulo}</span>
-            <span style='background: rgba(255, 255, 255, 0.08); color: {color}; font-size: 0.75em; padding: 2px 8px; border-radius: 4px; font-weight: bold; border: 1px solid {color}44;'>{codigo}</span>
+    <div style='background-color: #0f172a; border: 2px solid {color}; border-left: 8px solid {color}; border-radius: 12px; padding: 20px; margin: 16px 0; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); color: #ffffff;'>
+        <div style='display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;'>
+            <span style='font-size: 1.15em; font-weight: 800; color: #ffffff; letter-spacing: 0.2px;'>{icono} {titulo}</span>
+            <span style='background-color: {color}; color: #ffffff; font-size: 0.82em; padding: 5px 12px; border-radius: 6px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);'>{codigo}</span>
         </div>
-        <div style='color: #cbd5e1; font-size: 0.9em; margin-bottom: 10px; line-height: 1.5;'>
-            <strong style='color: #e2e8f0;'>¿Por qué ha ocurrido esto?</strong><br>
+        <div style='color: #38bdf8; font-size: 0.95em; font-weight: 700; margin-bottom: 4px;'>
+            ¿Por qué ha ocurrido esto?
+        </div>
+        <div style='color: #f1f5f9; font-size: 0.95em; line-height: 1.6; margin-bottom: 14px;'>
             {explicacion}
         </div>
-        <div style='background: rgba(15, 23, 42, 0.6); padding: 10px 12px; border-radius: 6px; font-size: 0.85em; color: #94a3b8; margin-bottom: 8px; border: 1px solid rgba(255, 255, 255, 0.05);'>
-            💡 <strong>Acción Recomendada:</strong> {recomendacion}
+        <div style='background-color: #1e293b; border-left: 4px solid #38bdf8; border: 1px solid #334155; padding: 12px 16px; border-radius: 8px; font-size: 0.92em; margin-bottom: 12px; line-height: 1.5;'>
+            <strong style='color: #38bdf8;'>💡 Acción Recomendada:</strong> <span style='color: #ffffff; font-weight: 500;'>{recomendacion}</span>
         </div>
-        <details style='font-size: 0.78em; color: #64748b; margin-top: 6px; cursor: pointer;'>
-            <summary>Ver detalle técnico de la excepción</summary>
-            <pre style='margin-top: 6px; padding: 8px; background: #0f172a; border-radius: 4px; color: #fca5a5; overflow-x: auto; white-space: pre-wrap;'>{detalle}</pre>
+        <details style='margin-top: 8px; font-size: 0.85em;'>
+            <summary style='color: #60a5fa; font-weight: 600; cursor: pointer; text-decoration: underline;'>🔍 Ver detalle técnico de la excepción</summary>
+            <pre style='margin-top: 8px; padding: 12px; background-color: #020617; border: 1px solid #334155; border-radius: 8px; color: #fca5a5; font-size: 0.85em; overflow-x: auto; white-space: pre-wrap; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;'>{detalle}</pre>
         </details>
     </div>
     """, unsafe_allow_html=True)
