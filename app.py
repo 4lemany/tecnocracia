@@ -567,16 +567,28 @@ DIRECTRIZ DE PROFUNDIDAD Y CONCISIÓN (MODO DETALLADO ACTIVADO):
 - Elabora un dictamen técnico y normativo completo, detallando el impacto presupuestario, metodologías, evidencias empíricas de las herramientas y posibles contraindicaciones.
 """
 
+                # Construir memoria contextual de la sesión (Multi-turn Context Buffer)
+                historial_sesion = []
+                for m in st.session_state.chat_messages[:-1]:
+                    if m.get("content"):
+                        rol_txt = "Ciudadano" if m["role"] == "user" else f"{nombre_agente}"
+                        historial_sesion.append(f"{rol_txt}: {m['content']}")
+
+                bloque_historial = ""
+                if historial_sesion:
+                    ultimos_turnos = "\n".join(historial_sesion[-6:])
+                    bloque_historial = f"\n\nHISTORIAL DE LA CONVERSACIÓN PREVIA EN ESTA SESIÓN:\n{ultimos_turnos}\n(IMPORTANTE: Usa este historial previo para responder con total coherencia a preguntas de seguimiento, referencias a términos anteriores o aclaraciones sobre conceptos que acabas de mencionar)."
+
                 prompt_completo = f"""
-{prompt_sistema}{bloque_evidencia}
+{prompt_sistema}{bloque_evidencia}{bloque_historial}
 
 {directriz_modo}
 
 REGLA DE ADAPTABILIDAD AL TIPO DE MENSAJE:
 - Si el mensaje del ciudadano es un saludo, una pregunta de cortesía o una duda sencilla sobre tus funciones (ej: "Hola", "Buenos días", "¿Para qué sirves?", "¿Quién eres?", "¿Qué haces?", "Gracias"):
   Responde de forma amable, cercana y muy breve (máximo 1 o 2 frases simples) explicando quién eres y ofreciéndote a ayudar. NO generes informes largos ni tecnicismos.
-- Si el mensaje es una propuesta, ley, dilema o consulta técnica/política real:
-  Responde con la profundidad y el rigor correspondiente a tu cargo y al modo seleccionado.
+- Si el mensaje es una propuesta, ley, dilema, consulta técnica o pregunta de seguimiento sobre la conversación:
+  Responde con la profundidad y el rigor correspondiente a tu cargo y al modo seleccionado, enlazando directamente con los conceptos comentados previamente si aplica.
 
 MENSAJE DEL CIUDADANO:
 {pregunta_usuario}
