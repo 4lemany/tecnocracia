@@ -508,7 +508,7 @@ with tab1:
             st.rerun()
 
     es_ejecutivo = "Ejecutivo" in modo_respuesta
-    max_tokens = 600 if es_ejecutivo else 2048
+    max_tokens = 1500 if es_ejecutivo else 3000
 
     prompts_map = {
         "👑 Primer Ministro (Visión Global y Coordinación)": ("Primer Ministro", INSTRUCCION_PRIME_MINISTER),
@@ -586,9 +586,13 @@ MENSAJE DEL CIUDADANO:
                 ts_inicio = datetime.now().strftime("%H:%M:%S")
                 fecha_completa = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-                # 2. Span de Inferencia LLM con Presupuesto de Tokens
+                # 2. Span de Inferencia LLM con Presupuesto de Tokens y Optimización de Pensamiento
                 response, error_diag = None, None
-                gen_config = types.GenerateContentConfig(max_output_tokens=max_tokens)
+                thinking_cfg = types.ThinkingConfig(thinking_budget=0) if es_ejecutivo else None
+                gen_config = types.GenerateContentConfig(
+                    max_output_tokens=max_tokens,
+                    thinking_config=thinking_cfg
+                )
                 with trace.span(
                     f"Inferencia LLM ({modelo_activo})",
                     SpanType.LLM,
