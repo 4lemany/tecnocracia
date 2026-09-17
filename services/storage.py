@@ -9,9 +9,9 @@ import os
 import json
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger("tecnocracia.storage")
 
@@ -457,3 +457,88 @@ def exportar_datos_comunidad_json() -> str:
     """Exporta los datos actuales en formato JSON formateado para backup."""
     datos = cargar_datos_comunidad()
     return json.dumps(datos, ensure_ascii=False, indent=2)
+
+
+def obtener_metricas_cuota_gemini(datos: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Calcula las métricas de consumo de la API de Google Gemini (Free Tier):
+    - Límites oficiales: 1.500 peticiones/día (RPD), 15 peticiones/min (RPM), 1.000.000 tokens/min (TPM).
+    - Conteo de peticiones y tokens consumidos hoy (UTC).
+    - Peticiones restantes y porcentaje consumido.
+    - Tiempo restante hasta el reinicio diario de cuota (00:00 UTC).
+    """
+    if datos is None:
+        datos = cargar_datos_comunidad()
+
+    LIMITE_RPD = 1500
+    LIMITE_RPM = 15
+    LIMITE_TPM = 1000000
+
+    ahora_utc = datetime.now(timezone.utc)
+    hoy_utc_str = ahora_utc.strftime("%Y-%m-%d")
+
+    # Próximo reseteo a las 00:00 UTC del día siguiente
+    proximo_reset = (ahora_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    segundos_restantes = int((proximo_reset - ahora_utc).total_seconds())
+    horas_restantes = max(0, segundos_restantes // 3600)
+    mins_restantes = max(0, (segundos_restantes % 3600) // 60)
+
+    historial = datos.get("historial_conversaciones", [])
+    peticiones_hoy = 0
+    tokens_hoy = 0
+    peticiones_ultimo_minuto = 0
+    ts_hace_un_min = ahora_utc.timestamp() - 60
+
+    for item in historial:
+        fecha_item = str(item.get("fecha", ""))
+        telemetria = item.get("telemetria", {})
+        ts_item = telemetria.get("timestamp", 0)
+
+        # Si coincide con la fecha de hoy en UTC o timestamp
+        es_hoy = hoy_utc_str in fecha_item
+        if not es_hoy and ts_item:
+            try:
+                dt_item = datetime.fromtimestamp(ts_item, tz=timezone.utc)
+                if dt_item.strftime("%Y-%m-%d") == hoy_utc_str:
+                    es_hoy = True
+            except Exception:
+                pass
+
+        if es_hoy:
+            peticiones_hoy += 1
+            tokens_in = telemetria.get("tokens_in", 0) or 0
+            tokens_out = telemetria.get("tokens_out", 0) or 0
+            tokens_hoy += (tokens_in + tokens_out)
+
+        if ts_item and ts_item >= ts_hace_un_min:
+            peticiones_ultimo_minuto += 1
+
+    peticiones_restantes = max(0, LIMITE_RPD - peticiones_hoy)
+    pct_diario = round((peticiones_hoy / LIMITE_RPD) * 100, 1)
+
+    if pct_diario < 70:
+        estado_cuota = "🟢 Óptimo (Nivel Gratuito)"
+        color_estado = "#10b981"
+    elif pct_diario < 90:
+        estado_cuota = "🟡 Moderado (Consumo Elevado)"
+        color_estado = "#f59e0b"
+    else:
+        estado_cuota = "🔴 Alerta (Cerca del Límite)"
+        color_estado = "#ef4444"
+
+    return {
+        "limite_rpd": LIMITE_RPD,
+        "limite_rpm": LIMITE_RPM,
+        "limite_tpm": LIMITE_TPM,
+        "peticiones_hoy": peticiones_hoy,
+        "peticiones_restantes": peticiones_restantes,
+        "tokens_hoy": tokens_hoy,
+        "rpm_actual": peticiones_ultimo_minuto,
+        "pct_diario": pct_diario,
+        "tiempo_restante_reset": f"{horas_restantes}h {mins_restantes}m",
+        "proximo_reset_hora": "00:00 UTC",
+        "estado": estado_cuota,
+        "color_estado": color_estado,
+        "coste": "0,00 € (Free Tier)"
+    }
+

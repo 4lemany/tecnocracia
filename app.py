@@ -71,7 +71,8 @@ from services.storage import (
     vaciar_historial_conversaciones,
     get_storage_backend_info,
     exportar_datos_comunidad_json,
-    restaurar_datos_comunidad
+    restaurar_datos_comunidad,
+    obtener_metricas_cuota_gemini
 )
 
 # Motor de Evaluación de Agentes Google ADK
@@ -417,12 +418,14 @@ def render_observability_panel(trace_data: Dict[str, Any], key_prefix: str = "tr
             st.metric("⚡ Tokens In/Out", f"{tokens_in} / {tokens_out}")
 
     modo_badge = trace_data.get("modo_respuesta", "⚡ Ejecutivo")
+    cuota_fast = obtener_metricas_cuota_gemini()
     st.markdown(f"""
     <div style='margin-top: 8px; margin-bottom: 12px;'>
         <span class='trace-pill pill-green'>🛡️ Seguridad: {eval_adk.get('seguridad', 'PASSED')}</span>
         <span class='trace-pill pill-blue'>📊 Spans: {len(spans) if spans else 1} fases</span>
         <span class='trace-pill pill-amber'>🎛️ {modo_badge}</span>
-        <span class='trace-pill pill-blue'>💰 Coste: 0,00 € (Free Tier)</span>
+        <span class='trace-pill pill-blue'>⚡ Cuota: {cuota_fast['peticiones_restantes']} rest. (Recarga en {cuota_fast['tiempo_restante_reset']})</span>
+        <span class='trace-pill pill-green'>💰 Coste: 0,00 € (Free Tier)</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -516,11 +519,33 @@ with st.sidebar:
     
     # Métricas reales de votación ciudadana en el sidebar
     datos_actuales = cargar_datos_comunidad()
-    votos = datos_actuales.get("votos", {})
-    pos = votos.get("positivos", 0)
-    neg = votos.get("negativos", 0)
-    total_votos = pos + neg
-    pct_aprobacion = round((pos / total_votos) * 100, 1) if total_votos > 0 else 0.0
+
+    # Métricas de consumo y cuota de la API de Gemini (Free Tier)
+    cuota_api = obtener_metricas_cuota_gemini(datos_actuales)
+    st.subheader("⚡ Cuota y Consumo API Gemini")
+    
+    st.markdown(f"""
+    <div style='background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;'>
+        <div style='display: flex; justify-content: space-between; align-items: center;'>
+            <span style='font-size: 0.82rem; font-weight: 700; color: #0284c7;'>ESTADO: {cuota_api["estado"]}</span>
+            <span style='font-size: 0.75rem; color: #64748b; font-weight: 600;'>Free Tier</span>
+        </div>
+        <div style='font-size: 0.78rem; color: #475569; margin-top: 4px;'>
+            🔄 <strong>Se recarga en:</strong> <span style='color: #0369a1; font-weight: 700;'>{cuota_api["tiempo_restante_reset"]}</span> (00:00 UTC)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col_cq1, col_cq2 = st.columns(2)
+    with col_cq1:
+        st.metric(label="Peticiones Hoy", value=f"{cuota_api['peticiones_hoy']} / {cuota_api['limite_rpd']}")
+    with col_cq2:
+        st.metric(label="Restantes Hoy", value=f"{cuota_api['peticiones_restantes']}")
+
+    st.progress(min(1.0, cuota_api["pct_diario"] / 100.0))
+    st.caption(f"⚡ **Ritmo:** {cuota_api['rpm_actual']} / {cuota_api['limite_rpm']} req/min | 🪙 **Tokens hoy:** {cuota_api['tokens_hoy']:,} | 💰 **Coste:** 0,00 €")
+    
+    st.divider()
     
     st.subheader("📊 Aprobación del Proyecto")
     col_v1, col_v2 = st.columns(2)

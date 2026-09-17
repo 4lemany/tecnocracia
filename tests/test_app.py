@@ -74,7 +74,30 @@ class TestAppLogic(unittest.TestCase):
         self.assertEqual(datos_restaurados["votos"]["positivos"], 42)
         self.assertEqual(len(datos_restaurados["opiniones"]), 1)
 
+    def test_metricas_cuota_gemini(self):
+        """Valida el cálculo de consumo diario, límites Free Tier y tiempo de recarga UTC."""
+        from services.storage import obtener_metricas_cuota_gemini
+        
+        datos_simulados = {
+            "votos": {"positivos": 0, "negativos": 0},
+            "opiniones": [],
+            "historial_conversaciones": [
+                {
+                    "fecha": "2026-09-17 14:00:00",
+                    "telemetria": {"tokens_in": 100, "tokens_out": 150, "tokens_total": 250, "timestamp": 1726588000}
+                }
+            ]
+        }
+        cuota = obtener_metricas_cuota_gemini(datos_simulados)
+        self.assertEqual(cuota["limite_rpd"], 1500)
+        self.assertEqual(cuota["limite_rpm"], 15)
+        self.assertIn("peticiones_hoy", cuota)
+        self.assertIn("tiempo_restante_reset", cuota)
+        self.assertIn("00:00 UTC", cuota["proximo_reset_hora"])
+        self.assertIn("Free Tier", cuota["coste"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
