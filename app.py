@@ -273,8 +273,12 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=Non
             es_transitorio = any(k in err_msg for k in ["429", "RESOURCE_EXHAUSTED", "ServerError", "500", "503", "504", "overloaded", "UNAVAILABLE"])
 
             if es_transitorio and intento < max_intentos - 1:
-                espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 4
-                st.toast(f"⏳ Servidores de Google con alta demanda. Reintentando ({intento+1}/{max_intentos})...", icon="⏳")
+                # Si es 429 Resource Exhausted (límite 15 RPM), pausar con tiempo suficiente para reset
+                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                    espera = 6 if intento == 0 else 10
+                else:
+                    espera = backoff_tiempos[intento] if intento < len(backoff_tiempos) else 4
+                st.toast(f"⏳ Servidores con alta demanda. Reintentando automáticamente ({intento+1}/{max_intentos})...", icon="⏳")
                 time.sleep(espera)
                 continue
             elif intento < max_intentos - 1 and "SAFETY" not in err_msg and "API_KEY" not in err_msg:
@@ -286,6 +290,27 @@ def generar_con_reintento(client, contents, model="gemini-3.6-flash", config=Non
     # Diagnóstico causal y explicabilidad sin elevar excepción al motor de Streamlit
     diag = diagnosticar_error_gemini(ultimo_error if ultimo_error else Exception("Error no identificado en la llamada"))
     return None, diag
+
+
+def cb_reiniciar_chat():
+    """Callback atómico para vaciar la conversación en 1 solo clic."""
+    st.session_state.chat_messages = []
+    st.session_state.pregunta_reintento = None
+
+
+def cb_reintentar_consulta():
+    """Callback atómico para reintentar la última pregunta del usuario en 1 solo clic."""
+    pregunta_guardada = None
+    for m in reversed(st.session_state.get("chat_messages", [])):
+        if m.get("role") == "user" and m.get("content"):
+            pregunta_guardada = m["content"]
+            break
+    
+    if pregunta_guardada:
+        st.session_state.pregunta_reintento = pregunta_guardada
+        # Eliminar el turno de error anterior para reejecutar limpiamente
+        if st.session_state.get("chat_messages") and "error_diag" in st.session_state.chat_messages[-1]:
+            st.session_state.chat_messages.pop()
 
 
 def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
@@ -323,23 +348,24 @@ def render_error_diagnosis_card(error_diag: dict, key_prefix: str = "err"):
     </div>
     """, unsafe_allow_html=True)
 
-    # Botón directo y accesible de reintento de la consulta fallida
-    col_reintento, col_espacio = st.columns([1.8, 3.2])
+    # Botones directos de reintento y reinicio en 1 clic mediante callbacks atómicos
+    col_reintento, col_reiniciar = st.columns([1.5, 1.5])
     with col_reintento:
-        if st.button("🔄 Reintentar Consulta", key=f"btn_retry_{key_prefix}", type="primary", use_container_width=True):
-            # Obtener la última pregunta del usuario en la sesión
-            pregunta_guardada = None
-            for m in reversed(st.session_state.get("chat_messages", [])):
-                if m.get("role") == "user" and m.get("content"):
-                    pregunta_guardada = m["content"]
-                    break
-            
-            if pregunta_guardada:
-                st.session_state.pregunta_reintento = pregunta_guardada
-                # Eliminar el turno de error anterior para reejecutar limpiamente
-                if st.session_state.get("chat_messages") and "error_diag" in st.session_state.chat_messages[-1]:
-                    st.session_state.chat_messages.pop()
-                st.rerun()
+        st.button(
+            "🔄 Reintentar Consulta",
+            key=f"btn_retry_{key_prefix}",
+            type="primary",
+            use_container_width=True,
+            on_click=cb_reintentar_consulta
+        )
+    with col_reiniciar:
+        st.button(
+            "🧹 Reiniciar Conversación",
+            key=f"btn_reset_{key_prefix}",
+            use_container_width=True,
+            on_click=cb_reiniciar_chat,
+            help="Vaciar la conversación y volver a empezar de cero"
+        )
 
 def resolver_grounding_tools(interlocutor: str, pregunta: str, trace: TraceContext) -> tuple[str, list[str]]:
     """Ejecuta y traza las herramientas oficiales de los ministros según el contexto."""
@@ -672,9 +698,12 @@ with tab1:
     with col_ag2:
         st.write("")
         st.write("")
-        if st.button("🧹 Limpiar", use_container_width=True, help="Reiniciar la sesión de chat activa"):
-            st.session_state.chat_messages = []
-            st.rerun()
+        st.button(
+            "🧹 Reiniciar Conversación",
+            use_container_width=True,
+            help="Reiniciar la sesión de chat activa y limpiar la pantalla",
+            on_click=cb_reiniciar_chat
+        )
 
     max_tokens = 1500 if es_ejecutivo else 3000
 
@@ -713,7 +742,8 @@ with tab1:
             if msg.get("content"):
                 st.markdown(msg["content"])
             if "error_diag" in msg:
-                render_error_diagnosis_card(msg["error_diag"], key_prefix=f"hist_err_{idx}")
+                err_id = msg.get("id", f"err_{idx}")
+                render_error_diagnosis_card(msg["error_diag"], key_prefix=err_id)
             if "trace" in msg:
                 with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=False):
                     render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', idx)}")
@@ -836,8 +866,9 @@ MENSAJE DEL CIUDADANO:
                     trace_dict["duracion"] = duracion
                     trace_dict["error"] = error_diag
 
+                    err_msg_id = f"err_{int(time.time()*1000)}"
                     # Tarjeta de Explicabilidad DevOps y Diagnóstico Causal
-                    render_error_diagnosis_card(error_diag, key_prefix="live_err")
+                    render_error_diagnosis_card(error_diag, key_prefix=err_msg_id)
 
                     with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=True):
                         render_observability_panel(trace_dict, key_prefix="chat_current_err")
@@ -846,7 +877,8 @@ MENSAJE DEL CIUDADANO:
                         "role": "assistant",
                         "content": "",
                         "error_diag": error_diag,
-                        "trace": trace_dict
+                        "trace": trace_dict,
+                        "id": err_msg_id
                     })
                 else:
                     # 3. Span de Evaluación Google ADK
