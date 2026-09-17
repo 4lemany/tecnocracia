@@ -24,16 +24,23 @@ def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]
     # 2. Variable de entorno local (.env / sistema)
     valor_env = os.getenv(secret_name)
     if valor_env:
-        _CACHE_SECRETS[secret_name] = valor_env
-        return valor_env
+        val_clean = valor_env.strip().strip('"').strip("'")
+        _CACHE_SECRETS[secret_name] = val_clean
+        return val_clean
 
     # 3. Streamlit Secrets (si se ejecuta dentro de Streamlit)
     try:
         import streamlit as st
-        if hasattr(st, "secrets") and secret_name in st.secrets:
-            val = str(st.secrets[secret_name])
-            _CACHE_SECRETS[secret_name] = val
-            return val
+        if hasattr(st, "secrets"):
+            if secret_name in st.secrets:
+                val = str(st.secrets[secret_name]).strip().strip('"').strip("'")
+                _CACHE_SECRETS[secret_name] = val
+                return val
+            for k in st.secrets:
+                if str(k).upper() == secret_name.upper():
+                    val = str(st.secrets[k]).strip().strip('"').strip("'")
+                    _CACHE_SECRETS[secret_name] = val
+                    return val
     except Exception:
         pass
 
@@ -44,7 +51,7 @@ def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]
             client = secretmanager.SecretManagerServiceClient()
             resource_name = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
             response = client.access_secret_version(request={"name": resource_name})
-            secreto_str = response.payload.data.decode("UTF-8").strip()
+            secreto_str = response.payload.data.decode("UTF-8").strip().strip('"').strip("'")
             if secreto_str:
                 _CACHE_SECRETS[secret_name] = secreto_str
                 logger.info(f"Secreto '{secret_name}' obtenido exitosamente desde Google Secret Manager.")
@@ -60,10 +67,11 @@ def get_gemini_api_key() -> Optional[str]:
     try:
         import streamlit as st
         if hasattr(st, "session_state") and st.session_state.get("custom_gemini_api_key"):
-            return st.session_state.custom_gemini_api_key
+            return str(st.session_state.custom_gemini_api_key).strip().strip('"').strip("'")
     except Exception:
         pass
-    return get_secret("GEMINI_API_KEY")
+    key = get_secret("GEMINI_API_KEY")
+    return str(key).strip().strip('"').strip("'") if key else None
 
 
 def get_secondary_gemini_api_key() -> Optional[str]:
@@ -71,10 +79,11 @@ def get_secondary_gemini_api_key() -> Optional[str]:
     try:
         import streamlit as st
         if hasattr(st, "session_state") and st.session_state.get("custom_gemini_api_key_2"):
-            return st.session_state.custom_gemini_api_key_2
+            return str(st.session_state.custom_gemini_api_key_2).strip().strip('"').strip("'")
     except Exception:
         pass
-    return get_secret("GEMINI_API_KEY_2")
+    key = get_secret("GEMINI_API_KEY_2")
+    return str(key).strip().strip('"').strip("'") if key else None
 
 
 def get_groq_api_key() -> Optional[str]:
@@ -82,10 +91,15 @@ def get_groq_api_key() -> Optional[str]:
     try:
         import streamlit as st
         if hasattr(st, "session_state") and st.session_state.get("custom_groq_api_key"):
-            return st.session_state.custom_groq_api_key
+            return str(st.session_state.custom_groq_api_key).strip().strip('"').strip("'")
     except Exception:
         pass
-    return get_secret("GROQ_API_KEY")
+    # Intentar con varios nombres posibles en secrets
+    for nombre_var in ["GROQ_API_KEY", "GROQ_KEY", "GROQ"]:
+        key = get_secret(nombre_var)
+        if key:
+            return str(key).strip().strip('"').strip("'")
+    return None
 
 
 def get_secrets_backend_info() -> Dict[str, str]:

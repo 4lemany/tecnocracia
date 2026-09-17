@@ -266,53 +266,83 @@ class UnifiedLLMResponse:
         self.failover_desde = failover_desde
 
 
-def generar_con_groq(prompt_texto: str, groq_key: str, model: str = "llama-3.3-70b-versatile", max_tokens: int = 1500, failover: bool = False) -> tuple[Any, Optional[dict]]:
+def generar_con_groq(
+    prompt_texto: str,
+    groq_key: str,
+    model: str = "llama-3.3-70b-versatile",
+    max_tokens: int = 1500,
+    failover: bool = False
+) -> tuple[Any, Optional[dict]]:
     """
     Inferencia gratuita en Groq Cloud utilizando arquitectura LPU ultra-rápida.
-    Ofrece 30 RPM y 14.400 peticiones diarias gratuitas (0,00 €) sin tarjeta de crédito.
+    Implementa reintento en cascada: prueba llama-3.3-70b-versatile y si se agota el TPM o falla,
+    conmuta automáticamente a llama-3.1-8b-instant dentro de Groq antes de recurrir a Gemini.
     """
     import requests
-    if not groq_key or not groq_key.strip():
+    if not groq_key or not str(groq_key).strip():
         return None, diagnosticar_error_gemini(Exception("API_KEY_INVALID: Groq API Key no configurada."))
 
+    clean_key = str(groq_key).strip().strip('"').strip("'").strip()
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {groq_key.strip()}",
+        "Authorization": f"Bearer {clean_key}",
         "Content-Type": "application/json"
     }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "user", "content": prompt_texto}
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.4
-    }
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            usage = data.get("usage", {})
-            t_in = usage.get("prompt_tokens", 0)
-            t_out = usage.get("completion_tokens", 0)
-            return UnifiedLLMResponse(
-                text=content,
-                provider="groq",
-                model=model,
-                usage_metadata=GroqUsageMetadata(t_in, t_out),
-                es_failover=failover,
-                failover_desde="gemini" if failover else ""
-            ), None
-        else:
-            try:
-                err_data = resp.json()
-                msg = err_data.get("error", {}).get("message", resp.text)
-            except Exception:
-                msg = resp.text
-            return None, diagnosticar_error_gemini(Exception(f"Groq API Error {resp.status_code}: {msg}"))
-    except Exception as e:
-        return None, diagnosticar_error_gemini(e)
+
+    # Modelos de Groq en cascada: primero el solicitado (70B), y 8B como salvaguarda
+    candidatos = [model]
+    if "8b" not in model.lower():
+        candidatos.append("llama-3.1-8b-instant")
+
+    ultimo_err_msg = ""
+    ultimo_status = 0
+
+    for m in candidatos:
+        payload = {
+            "model": m,
+            "messages": [
+                {"role": "user", "content": prompt_texto}
+            ],
+            "max_tokens": min(max_tokens, 2048),
+            "temperature": 0.4
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=25)
+            ultimo_status = resp.status_code
+            if resp.status_code == 200:
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices and "message" in choices[0]:
+                    content = choices[0]["message"].get("content", "")
+                    usage = data.get("usage", {})
+                    t_in = usage.get("prompt_tokens", 0)
+                    t_out = usage.get("completion_tokens", 0)
+                    return UnifiedLLMResponse(
+                        text=content,
+                        provider="groq",
+                        model=m,
+                        usage_metadata=GroqUsageMetadata(t_in, t_out),
+                        es_failover=failover or (m != model),
+                        failover_desde="llama-3.3-70b" if m != model else ("gemini" if failover else "")
+                    ), None
+                else:
+                    ultimo_err_msg = "Respuesta sin choices en payload de Groq"
+            else:
+                try:
+                    err_json = resp.json()
+                    ultimo_err_msg = err_json.get("error", {}).get("message", resp.text)
+                except Exception:
+                    ultimo_err_msg = resp.text[:200]
+                
+                # Si falló en 70B (ej: TPM limit o saturación), probar inmediatamente con 8B
+                if m != candidatos[-1]:
+                    continue
+        except Exception as e_req:
+            ultimo_err_msg = str(e_req)
+            if m != candidatos[-1]:
+                continue
+
+    return None, diagnosticar_error_gemini(Exception(f"Groq API Error {ultimo_status}: {ultimo_err_msg}"))
 
 
 # Función de llamada a Gemini con manejo robusto de reintentos, degradación elegante y observabilidad
@@ -331,11 +361,13 @@ def generar_con_reintento(
     Invoca inferencia con estrategia de alta disponibilidad (Groq Primario -> Gemini Fallback):
     1. Si el usuario prefiere Groq (o por defecto si existe GROQ_API_KEY):
        - Ejecuta Groq LPU (Llama 3.3 70B, 30 RPM, velocidad ~1s).
-       - Si Groq experimenta algún fallo o rate limit, salta automáticamente a Google Gemini como fallback.
+       - Si Groq 70B alcanza el límite TPM, salta a Groq 8B instantáneamente.
+       - Si Groq falla por completo, salta a Google Gemini como fallback.
     2. Si el usuario prefiere Gemini:
        - Ejecuta Google Gemini. Si da 429 o 503, salta a la clave 2 de Gemini o a Groq LPU.
     """
     fallback_from_groq = False
+    error_groq_txt = ""
 
     # Estrategia 1: Groq como motor prioritario con Fallback a Gemini
     if proveedor_preferido == "groq" and groq_key:
@@ -343,9 +375,10 @@ def generar_con_reintento(
         if resp_groq:
             return resp_groq, None
         
-        # Si Groq falla (ej. sobrecarga, rate limit o timeout), conmutamos a Gemini
+        # Si Groq falla (tras intentar 70B y 8B), conmutamos a Gemini mostrando el motivo real
+        error_groq_txt = err_groq.get("detalle_tecnico", str(err_groq)) if isinstance(err_groq, dict) else str(err_groq)
         if client:
-            st.toast("⚠️ Groq temporalmente indispuesto. Conmutando de emergencia a Google Gemini...", icon="🔄")
+            st.toast(f"⚠️ Groq: {error_groq_txt[:95]}. Conmutando a Gemini...", icon="🔄")
             fallback_from_groq = True
         else:
             return None, err_groq
