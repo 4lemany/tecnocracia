@@ -15,7 +15,7 @@ import streamlit as st
 # Configuración de página adaptada para móvil y escritorio (solo en ejecución de Streamlit)
 if "pytest" not in sys.modules and "unittest" not in sys.modules:
     st.set_page_config(
-        page_title="Tecnocracia | Partido y Gobierno Multiagente",
+        page_title="Partido Tecnocrático de España | Gobernanza con IA",
         page_icon="🏛️",
         layout="wide",
         initial_sidebar_state="auto"
@@ -516,8 +516,8 @@ def render_observability_panel(trace_data: Dict[str, Any], key_prefix: str = "tr
 # ----------------- BARRA LATERAL: INFORMACIÓN Y SERVICIOS ADK -----------------
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/courthouse.png", width=64)
-    st.title("Gobierno Tecnocrático")
-    st.caption("Sistema Multiagente impulsado por Google ADK & Gemini")
+    st.title("Partido Tecnocrático")
+    st.caption("Propuesta de Gobernanza para España (Google ADK & Gemini)")
     
     st.divider()
     
@@ -621,17 +621,17 @@ with st.sidebar:
             st.info("💡 **Persistencia Gratuita Permanente:** Si deseas que los votos y el historial no se borren nunca al hibernar Streamlit Cloud y sin usar Google Cloud, puedes conectar un **GitHub Gist privado** configurando `GITHUB_GIST_ID` y `GITHUB_TOKEN` en tus Secrets.")
 
     st.divider()
-    st.subheader("🏛️ Miembros del Gabinete")
+    st.subheader("🏛️ Consejo Técnico para España")
     st.markdown("""
-    * 👑 **Primer Ministro:** Coordinador y árbitro general.
-    * 💼 **Economía y Hacienda:** Disciplina fiscal, costes e incentivos.
-    * 🎓 **Educación y Ciencia:** Talento, I+D y capital humano.
-    * 🛡️ **Interior y Gobernanza:** Seguridad, orden y desburocratización.
+    * 👑 **Primer Ministro:** Coordinación de Estado y visión estratégica nacional.
+    * 💼 **Economía y Hacienda:** Productividad, reforma fiscal, deuda y pensiones.
+    * 🎓 **Educación y FP:** Pacto por el talento, STEM, FP Dual y universidades.
+    * 🛡️ **Interior y Gobernanza:** Ciberseguridad, modernización del Estado y mérito.
     """)
 
 # ----------------- PANEL PRINCIPAL: TABS -----------------
-st.title("🏛️ Partido Tecnocrático: Gabinete Autónomo")
-st.markdown("Un gobierno ficticio donde ministros con IA analizan con máximo rigor técnico la gestión de una región.")
+st.title("🏛️ Partido Tecnocrático de España: Gabinete de Gobernanza")
+st.markdown("Propuesta política y técnica para la gobernanza de España: decisiones públicas fundamentadas en datos oficiales, evidencia empírica y optimización matemática de los recursos del Estado.")
 
 tab1, tab2, tab3 = st.tabs([
     "💬 Preguntas Libres y Trazabilidad",
@@ -643,18 +643,18 @@ tab1, tab2, tab3 = st.tabs([
 # TAB 1: PREGUNTAS LIBRES Y EVALUACIÓN ADK EN TIEMPO REAL
 # -------------------------------------------------------------
 with tab1:
-    st.subheader("💬 Consulta y Preguntas Libres al Gabinete")
-    st.markdown("Pregunta cualquier cuestión a los miembros del gobierno y consulta la **trazabilidad y servicios de evaluación del Google ADK**.")
+    st.subheader("💬 Consulta a los Ministros Técnicos de España")
+    st.markdown("Plantea cualquier cuestión, consulta o propuesta sobre la gobernanza de España y evalúa la **trazabilidad y rigor técnico del Google ADK**.")
     
     col_ag1, col_mode, col_ag2 = st.columns([2.5, 2.5, 1])
     with col_ag1:
         interlocutor = st.selectbox(
-            "¿A quién deseas preguntar?",
+            "¿A qué responsable deseas consultar?",
             [
-                "👑 Primer Ministro (Visión Global y Coordinación)",
-                "💼 Ministro de Economía y Hacienda (Presupuesto, Impuestos, ROI)",
-                "🎓 Ministro de Educación y Cultura (STEM, Leyes, Talento)",
-                "🛡️ Ministro de Interior (Seguridad, Desburocratización, Orden)",
+                "👑 Primer Ministro (Visión de Estado y Coordinación)",
+                "💼 Ministro de Economía y Hacienda (Presupuesto, Deuda, Pensiones)",
+                "🎓 Ministro de Educación y FP (Pacto de Estado, STEM, FP Dual)",
+                "🛡️ Ministro de Interior (Seguridad, Ciberseguridad, Eficiencia)",
                 "👥 Gabinete Completo (Mesa Redonda Interministerial)"
             ]
         )
@@ -679,11 +679,11 @@ with tab1:
     max_tokens = 1500 if es_ejecutivo else 3000
 
     prompts_map = {
-        "👑 Primer Ministro (Visión Global y Coordinación)": ("Primer Ministro", INSTRUCCION_PRIME_MINISTER),
-        "💼 Ministro de Economía y Hacienda (Presupuesto, Impuestos, ROI)": ("Ministro de Economía", INSTRUCCION_ECONOMIA),
-        "🎓 Ministro de Educación y Cultura (STEM, Leyes, Talento)": ("Ministro de Educación", INSTRUCCION_EDUCACION),
-        "🛡️ Ministro de Interior (Seguridad, Desburocratización, Orden)": ("Ministro de Interior", INSTRUCCION_INTERIOR),
-        "👥 Gabinete Completo (Mesa Redonda Interministerial)": ("Consejo de Ministros", INSTRUCCION_PRIME_MINISTER + "\n\nResponde ofreciendo una breve pincelada de Economía, Educación e Interior y la síntesis final del Primer Ministro.")
+        "👑 Primer Ministro (Visión de Estado y Coordinación)": ("Primer Ministro", INSTRUCCION_PRIME_MINISTER),
+        "💼 Ministro de Economía y Hacienda (Presupuesto, Deuda, Pensiones)": ("Ministro de Economía", INSTRUCCION_ECONOMIA),
+        "🎓 Ministro de Educación y FP (Pacto de Estado, STEM, FP Dual)": ("Ministro de Educación", INSTRUCCION_EDUCACION),
+        "🛡️ Ministro de Interior (Seguridad, Ciberseguridad, Eficiencia)": ("Ministro de Interior", INSTRUCCION_INTERIOR),
+        "👥 Gabinete Completo (Mesa Redonda Interministerial)": ("Consejo de Ministros", INSTRUCCION_PRIME_MINISTER + "\n\nResponde ofreciendo una perspectiva técnica de Economía, Educación e Interior para España y la síntesis estratégica del Primer Ministro.")
     }
     
     nombre_agente, prompt_sistema = prompts_map[interlocutor]
@@ -718,7 +718,7 @@ with tab1:
                 with st.expander("🔍 Observabilidad & Spans de Agentes (Google ADK)", expanded=False):
                     render_observability_panel(msg["trace"], key_prefix=f"history_{msg.get('id', idx)}")
 
-    pregunta_input = st.chat_input("Escribe tu pregunta para el gobierno...")
+    pregunta_input = st.chat_input("Escribe tu consulta o propuesta para el gabinete de España...")
     pregunta_reintento = st.session_state.pop("pregunta_reintento", None)
     pregunta_usuario = pregunta_input or pregunta_reintento
     
@@ -895,7 +895,7 @@ MENSAJE DEL CIUDADANO:
 # -------------------------------------------------------------
 with tab2:
     st.subheader("📜 Historial de Interacciones y Consultas")
-    st.markdown("Registro persistente e inmutable de todas las consultas realizadas al gabinete por todos los ciudadanos.")
+    st.markdown("Registro persistente e inmutable de todas las consultas sobre la gobernanza de España realizadas al gabinete por la ciudadanía.")
     
     # Cargar siempre la información más fresca de disco
     datos_frescos = cargar_datos_comunidad()
@@ -982,28 +982,28 @@ with tab2:
 # TAB 3: VOTACIÓN COMUNITARIA Y BUZÓN DE CRÍTICAS REAL
 # -------------------------------------------------------------
 with tab3:
-    st.subheader("🗳️ Encuesta y Buzón de Críticas sobre el Desarrollo")
-    st.markdown("Sistema de métricas 100% reales. Todas las votaciones y opiniones mostradas corresponden únicamente a la participación de usuarios reales.")
+    st.subheader("🗳️ Votación Ciudadana y Buzón de Aportaciones")
+    st.markdown("Participación ciudadana real: evalúa la propuesta política del Partido Tecnocrático de España y aporta tus críticas constructivas o iniciativas.")
     
     datos_voto = cargar_datos_comunidad()
     
     # 1. Sistema de votación real
-    st.markdown("#### 1. Votación de Aprobación del Proyecto")
+    st.markdown("#### 1. Aprobación Ciudadana del Proyecto Político")
     
     col_vote1, col_vote2, col_stat = st.columns([1, 1, 2])
     
     with col_vote1:
-        if st.button("👍 Me gusta el proyecto", use_container_width=True, disabled=st.session_state.ha_votado):
+        if st.button("👍 Apoyo el proyecto", use_container_width=True, disabled=st.session_state.ha_votado):
             registrar_voto(True)
             st.session_state.ha_votado = True
-            st.success("¡Gracias por tu voto a favor!")
+            st.success("¡Gracias por tu apoyo al Partido Tecnocrático de España!")
             st.rerun()
             
     with col_vote2:
-        if st.button("👎 No me convence", use_container_width=True, disabled=st.session_state.ha_votado):
+        if st.button("👎 No me convence la propuesta", use_container_width=True, disabled=st.session_state.ha_votado):
             registrar_voto(False)
             st.session_state.ha_votado = True
-            st.info("Voto registrado. Agradecemos que nos dejes tu crítica abajo.")
+            st.info("Voto registrado. Te invitamos a dejarnos tu crítica razonada en el buzón inferior.")
             st.rerun()
             
     with col_stat:
@@ -1023,14 +1023,14 @@ with tab3:
     st.divider()
     
     # 2. Buzón de opiniones reales
-    st.markdown("#### 2. Buzón de Críticas Constructivas y Sugerencias Reales")
+    st.markdown("#### 2. Buzón de Propuestas y Crítica Ciudadana para España")
     
     with st.form("form_buzon"):
         col_f1, col_f2 = st.columns([1, 2])
         with col_f1:
-            autor_opinion = st.text_input("Tu nombre o apodo (opcional):", placeholder="Ej: Anónimo / Usuario")
+            autor_opinion = st.text_input("Tu nombre o alias (opcional):", placeholder="Ej: Ciudadano / Simpatizante")
         with col_f2:
-            mensaje_opinion = st.text_area("¿Qué opinas del proyecto? ¿Qué mejorarías?", placeholder="Escribe aquí tu opinión o sugerencia...")
+            mensaje_opinion = st.text_area("¿Qué opinas de la propuesta de tecnocracia para España? ¿Qué medidas añadirías?", placeholder="Escribe aquí tu aportación o propuesta...")
             
         enviar_opinion = st.form_submit_button("📩 Enviar Opinión")
         

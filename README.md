@@ -1,6 +1,6 @@
-# 🏛️ Tecnocracia: Gabinete de Gobierno Multiagente
+# 🏛️ Partido Tecnocrático de España: Plataforma de Gobernanza Multiagente
 
-Plataforma de gobernanza basada en **Google Agent Development Kit (ADK)**, **Gemini 2.5**, **Streamlit** y arquitectura *serverless* en **Google Cloud Platform (GCP)** con **coste 0,00 € (Always Free Tier)**.
+Propuesta política y de gobernanza para España basada en **Google Agent Development Kit (ADK)**, **Gemini**, análisis empírico, ciencia de datos y optimización de recursos públicos en **Google Cloud Platform (GCP)** con **coste 0,00 € (Always Free Tier)**.
 
 ---
 

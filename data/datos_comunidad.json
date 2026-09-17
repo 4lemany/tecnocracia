@@ -1,8 +1,14 @@
 {
   "votos": {
-    "positivos": 0,
-    "negativos": 0
+    "positivos": 42,
+    "negativos": 3
   },
-  "opiniones": [],
+  "opiniones": [
+    {
+      "autor": "Ciudadano Test",
+      "mensaje": "Todo OK",
+      "fecha": "2026-09-17 16:00:00"
+    }
+  ],
   "historial_conversaciones": []
 }
