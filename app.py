@@ -291,8 +291,9 @@ def generar_con_groq(
 
     # Modelos de Groq en cascada: primero el solicitado (70B), y 8B como salvaguarda
     candidatos = [model]
-    if "8b" not in model.lower():
-        candidatos.append("llama-3.3-70b-versatile")
+    for alt in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192"]:
+        if alt not in candidatos:
+            candidatos.append(alt)
 
     ultimo_err_msg = ""
     ultimo_status = 0
@@ -378,7 +379,7 @@ def generar_con_reintento(
         # Si Groq falla (tras intentar 70B y 8B), conmutamos a Gemini mostrando el motivo real
         error_groq_txt = err_groq.get("detalle_tecnico", str(err_groq)) if isinstance(err_groq, dict) else str(err_groq)
         if client:
-            st.toast(f"⚠️ Groq: {error_groq_txt[:95]}. Conmutando a Gemini...", icon="🔄")
+            st.toast("⚡ Conmutando a Gemini (Groq no disponible o requiere clave válida)...", icon="ℹ️")
             fallback_from_groq = True
         else:
             return None, err_groq
@@ -814,7 +815,7 @@ with st.sidebar:
             "⚡ Gemini Prioritario (gemini-3.6-flash con Fallback a Groq)",
             "💎 Solo Google Gemini (Sin Groq)"
         ]
-        idx_default = 0 if groq_actual else 1
+        idx_default = 1
         motor_actual_sesion = st.session_state.get("motor_ia_preferido", "")
         if "Gemini Prioritario" in motor_actual_sesion:
             idx_default = 1
@@ -1039,7 +1040,7 @@ with tab1:
 
                 motor_pref_sel = st.session_state.get(
                     "motor_ia_preferido",
-                    "🚀 Groq Prioritario" if groq_key_activa else "⚡ Gemini Prioritario"
+                    "⚡ Gemini Prioritario"
                 )
                 proveedor_pref = "groq" if "Groq Prioritario" in motor_pref_sel and groq_key_activa else "gemini"
 
