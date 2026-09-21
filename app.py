@@ -276,7 +276,7 @@ def generar_con_groq(
     """
     Inferencia gratuita en Groq Cloud utilizando arquitectura LPU ultra-rápida.
     Implementa reintento en cascada: prueba llama-3.3-70b-versatile y si se agota el TPM o falla,
-    conmuta automáticamente a llama-3.1-8b-instant dentro de Groq antes de recurrir a Gemini.
+    conmuta automáticamente a llama-3.3-70b-versatile dentro de Groq antes de recurrir a Gemini.
     """
     import requests
     if not groq_key or not str(groq_key).strip():
@@ -292,7 +292,7 @@ def generar_con_groq(
     # Modelos de Groq en cascada: primero el solicitado (70B), y 8B como salvaguarda
     candidatos = [model]
     if "8b" not in model.lower():
-        candidatos.append("llama-3.1-8b-instant")
+        candidatos.append("llama-3.3-70b-versatile")
 
     ultimo_err_msg = ""
     ultimo_status = 0
