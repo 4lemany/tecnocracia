@@ -380,6 +380,9 @@ def generar_con_groq(
             if m != candidatos[-1]:
                 continue
 
+    if ultimo_status in [401, 404] or "do not have access" in ultimo_err_msg.lower() or "invalid" in ultimo_err_msg.lower():
+        msg_limpio = f"Groq API Error {ultimo_status}: La clave GROQ_API_KEY no es válida o fue revocada. Consigue una nueva clave en console.groq.com/keys ({ultimo_err_msg})"
+        return None, diagnosticar_error_gemini(Exception(msg_limpio))
     return None, diagnosticar_error_gemini(Exception(f"Groq API Error {ultimo_status}: {ultimo_err_msg}"))
 
 
