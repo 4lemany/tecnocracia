@@ -888,14 +888,13 @@ with st.sidebar:
         if st.session_state.get("ultimo_error_groq_log"):
             with st.expander("📜 Último Log de Error de Groq", expanded=False):
                 st.code(st.session_state["ultimo_error_groq_log"], language="text")
-        if not groq_actual:
-            st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
-            nueva_groq = st.text_input("Vincular GROQ_API_KEY:", type="password", key="sb_groq_key_input")
-            if st.button("Guardar Clave Groq", key="sb_btn_groq", use_container_width=True):
-                if nueva_groq and nueva_groq.strip():
-                    st.session_state.custom_groq_api_key = nueva_groq.strip()
-                    st.success("✅ Clave Groq guardada para esta sesión.")
-                    st.rerun()
+        st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
+        nueva_groq = st.text_input("Vincular / Actualizar GROQ_API_KEY:", type="password", key="sb_groq_key_input", help="Pega aquí tu clave nueva de console.groq.com/keys")
+        if st.button("Guardar Clave Groq", key="sb_btn_groq", use_container_width=True):
+            if nueva_groq and nueva_groq.strip():
+                st.session_state.custom_groq_api_key = nueva_groq.strip()
+                st.success("✅ Clave Groq guardada para esta sesión.")
+                st.rerun()
 
         gemini_2_actual = get_secondary_gemini_api_key()
         estado_gem2 = "🟢 Vinculada" if gemini_2_actual else "⚪ No configurada"
