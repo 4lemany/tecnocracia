@@ -416,7 +416,8 @@ def generar_con_reintento(
         # Si Groq falla (tras intentar 70B y 8B), conmutamos a Gemini mostrando el motivo real
         error_groq_txt = err_groq.get("detalle_tecnico", str(err_groq)) if isinstance(err_groq, dict) else str(err_groq)
         if client:
-            st.toast("⚡ Conmutando a Gemini (Groq no disponible o requiere clave válida)...", icon="ℹ️")
+            st.session_state["ultimo_error_groq_log"] = error_groq_txt
+            st.toast(f"⚠️ Groq: {error_groq_txt[:90]}. Conmutando a Gemini...", icon="⚠️")
             fallback_from_groq = True
         else:
             return None, err_groq
@@ -870,6 +871,20 @@ with st.sidebar:
         st.session_state.motor_ia_preferido = motor_sel
 
         st.markdown(f"**Groq LPU (30 RPM):** `{estado_groq}`")
+        if groq_actual:
+            if st.button("🔍 Probar Conexión con Groq Cloud", key="sb_btn_test_groq_conn", use_container_width=True):
+                with st.spinner("Enviando petición de prueba a Groq LPU (llama-3.3-70b-versatile)..."):
+                    test_resp, test_err = generar_con_groq("Hola, responde 'OK' para verificar la conexión.", groq_actual, failover=False)
+                    if test_resp and getattr(test_resp, "text", None):
+                        st.success(f"✅ ¡Conexión exitosa a Groq Cloud! Modelo: `{test_resp.model}`")
+                    else:
+                        err_det = test_err.get("detalle_tecnico", str(test_err)) if isinstance(test_err, dict) else str(test_err)
+                        st.error("❌ Falló la conexión con Groq Cloud")
+                        st.code(err_det, language="text")
+
+        if st.session_state.get("ultimo_error_groq_log"):
+            with st.expander("📜 Último Log de Error de Groq", expanded=False):
+                st.code(st.session_state["ultimo_error_groq_log"], language="text")
         if not groq_actual:
             st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
             nueva_groq = st.text_input("Vincular GROQ_API_KEY:", type="password", key="sb_groq_key_input")
