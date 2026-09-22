@@ -65,7 +65,7 @@ class TestAppLogic(unittest.TestCase):
         # Test de restauración con datos de prueba
         datos_prueba = {
             "votos": {"positivos": 42, "negativos": 3},
-            "opiniones": [{"autor": "Ciudadano Test", "mensaje": "Todo OK", "fecha": f"2026-09-21 16:00:00"}],
+            "opiniones": [{"autor": "Ciudadano Test", "mensaje": "Todo OK", "fecha": f"2026-09-22 16:00:00"}],
             "historial_conversaciones": []
         }
         ok = restaurar_datos_comunidad(datos_prueba)
@@ -84,12 +84,12 @@ class TestAppLogic(unittest.TestCase):
             "opiniones": [],
             "historial_conversaciones": [
                 {
-                    "fecha": f"2026-09-21 14:00:00",
+                    "fecha": f"2026-09-22 14:00:00",
                     "telemetria": {"tokens_in": 100, "tokens_out": 150, "tokens_total": 250, "timestamp": 1726588000}
                 },
                 {
-                    "fecha": f"2026-09-21 14:05:00",
-                    "telemetria": {"tokens_in": 200, "tokens_out": 300, "tokens_total": 500, "timestamp": f"2026-09-21 14:05:00"}
+                    "fecha": f"2026-09-22 14:05:00",
+                    "telemetria": {"tokens_in": 200, "tokens_out": 300, "tokens_total": 500, "timestamp": f"2026-09-22 14:05:00"}
                 }
             ]
         }

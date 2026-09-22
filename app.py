@@ -266,6 +266,41 @@ class UnifiedLLMResponse:
         self.failover_desde = failover_desde
 
 
+def extraer_texto_prompt(contents: Any) -> str:
+    """Extrae texto plano limpio desde cualquier estructura de datos de Gemini / ADK."""
+    if isinstance(contents, str):
+        return contents
+    if isinstance(contents, list):
+        textos = []
+        for item in contents:
+            if isinstance(item, str):
+                textos.append(item)
+            elif hasattr(item, "text") and getattr(item, "text", None):
+                textos.append(str(item.text))
+            elif isinstance(item, dict):
+                if "parts" in item:
+                    for p in item["parts"]:
+                        if isinstance(p, str):
+                            textos.append(p)
+                        elif isinstance(p, dict) and "text" in p:
+                            textos.append(p["text"])
+                        elif hasattr(p, "text"):
+                            textos.append(str(getattr(p, "text", "")))
+                elif "content" in item and isinstance(item["content"], str):
+                    textos.append(item["content"])
+            elif hasattr(item, "parts"):
+                parts = getattr(item, "parts", [])
+                for p in parts:
+                    if hasattr(p, "text") and getattr(p, "text", None):
+                        textos.append(str(p.text))
+                    elif isinstance(p, str):
+                        textos.append(p)
+        return "\n".join(textos) if textos else str(contents)
+    if hasattr(contents, "text") and getattr(contents, "text", None):
+        return str(contents.text)
+    return str(contents)
+
+
 def generar_con_groq(
     prompt_texto: str,
     groq_key: str,
@@ -282,7 +317,9 @@ def generar_con_groq(
     if not groq_key or not str(groq_key).strip():
         return None, diagnosticar_error_gemini(Exception("API_KEY_INVALID: Groq API Key no configurada."))
 
-    clean_key = str(groq_key).strip().strip('"').strip("'").strip()
+    import re
+    clean_key = re.sub(r'[\s\r\n\t"\']+', '', str(groq_key))
+    prompt_texto_str = extraer_texto_prompt(prompt_texto)
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {clean_key}",
@@ -302,7 +339,7 @@ def generar_con_groq(
         payload = {
             "model": m,
             "messages": [
-                {"role": "user", "content": prompt_texto}
+                {"role": "user", "content": prompt_texto_str}
             ],
             "max_tokens": min(max_tokens, 2048),
             "temperature": 0.4
