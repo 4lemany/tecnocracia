@@ -328,7 +328,7 @@ def generar_con_groq(
 
     # Modelos de Groq en cascada: primero el solicitado (70B), y 8B como salvaguarda
     candidatos = [model]
-    for alt in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192"]:
+    for alt in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]:
         if alt not in candidatos:
             candidatos.append(alt)
 
