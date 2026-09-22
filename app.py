@@ -874,10 +874,20 @@ with st.sidebar:
         st.session_state.motor_ia_preferido = motor_sel
 
         st.markdown(f"**Groq LPU (30 RPM):** `{estado_groq}`")
-        if groq_actual:
+        nueva_groq = st.text_input("Vincular / Actualizar GROQ_API_KEY:", type="password", key="sb_groq_key_input", help="Pega aquí tu clave nueva de console.groq.com/keys")
+        clave_efectiva = nueva_groq.strip() if (nueva_groq and nueva_groq.strip()) else groq_actual
+
+        if st.button("Guardar Clave Groq", key="sb_btn_groq", use_container_width=True):
+            if nueva_groq and nueva_groq.strip():
+                st.session_state.custom_groq_api_key = nueva_groq.strip()
+                st.session_state.pop("ultimo_error_groq_log", None)
+                st.success("✅ Clave Groq guardada para esta sesión.")
+                st.rerun()
+
+        if clave_efectiva:
             if st.button("🔍 Probar Conexión con Groq Cloud", key="sb_btn_test_groq_conn", use_container_width=True):
                 with st.spinner("Enviando petición de prueba a Groq LPU (llama-3.3-70b-versatile)..."):
-                    test_resp, test_err = generar_con_groq("Hola, responde 'OK' para verificar la conexión.", groq_actual, failover=False)
+                    test_resp, test_err = generar_con_groq("Hola, responde 'OK' para verificar la conexión.", clave_efectiva, failover=False)
                     if test_resp and getattr(test_resp, "text", None):
                         st.success(f"✅ ¡Conexión exitosa a Groq Cloud! Modelo: `{test_resp.model}`")
                     else:
@@ -888,13 +898,7 @@ with st.sidebar:
         if st.session_state.get("ultimo_error_groq_log"):
             with st.expander("📜 Último Log de Error de Groq", expanded=False):
                 st.code(st.session_state["ultimo_error_groq_log"], language="text")
-        st.caption("Obtén tu clave gratis en [console.groq.com/keys](https://console.groq.com/keys) (Sin tarjeta).")
-        nueva_groq = st.text_input("Vincular / Actualizar GROQ_API_KEY:", type="password", key="sb_groq_key_input", help="Pega aquí tu clave nueva de console.groq.com/keys")
-        if st.button("Guardar Clave Groq", key="sb_btn_groq", use_container_width=True):
-            if nueva_groq and nueva_groq.strip():
-                st.session_state.custom_groq_api_key = nueva_groq.strip()
-                st.success("✅ Clave Groq guardada para esta sesión.")
-                st.rerun()
+
 
         gemini_2_actual = get_secondary_gemini_api_key()
         estado_gem2 = "🟢 Vinculada" if gemini_2_actual else "⚪ No configurada"
