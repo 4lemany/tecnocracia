@@ -372,7 +372,11 @@ def generar_con_groq(
                 except Exception:
                     ultimo_err_msg = resp.text[:200]
                 
-                # Si falló en 70B (ej: TPM limit o saturación), probar inmediatamente con 8B
+                # Si es un error de autenticación / permisos (401 o 404), romper el bucle inmediatamente
+                if resp.status_code in [401, 404] or "access" in ultimo_err_msg.lower() or "invalid" in ultimo_err_msg.lower():
+                    break
+
+                # Si falló en 70B por límite de cuota (429/500/503), probar con 8B
                 if m != candidatos[-1]:
                     continue
         except Exception as e_req:
