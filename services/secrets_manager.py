@@ -43,17 +43,20 @@ def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]
     try:
         import streamlit as st
         if hasattr(st, "secrets"):
-            if secret_name in st.secrets:
-                val = _limpiar_valor_secreto(st.secrets[secret_name])
-                if val:
-                    _CACHE_SECRETS[secret_name] = val
-                    return val
-            for k in st.secrets:
-                if str(k).upper() == secret_name.upper():
-                    val = _limpiar_valor_secreto(st.secrets[k])
+            try:
+                if secret_name in st.secrets:
+                    val = _limpiar_valor_secreto(st.secrets[secret_name])
                     if val:
                         _CACHE_SECRETS[secret_name] = val
                         return val
+                for k in st.secrets:
+                    if str(k).upper() == secret_name.upper():
+                        val = _limpiar_valor_secreto(st.secrets[k])
+                        if val:
+                            _CACHE_SECRETS[secret_name] = val
+                            return val
+            except Exception as e_toml:
+                logger.warning(f"Error parseando st.secrets (TOML sintaxis inválida): {e_toml}")
     except Exception:
         pass
 
